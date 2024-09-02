@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+<atom:link href="https://www.nhc.noaa.gov/gtwo.xml" rel="self" type="application/rss+xml" /> <pubDate>Mon, 02 Sep 2024 11:38:29 GMT</pubDate>
+<lastBuildDate>Mon, 02 Sep 2024 11:38:29 GMT</lastBuildDate>
+<title>National Hurricane Center Graphical Tropical Weather Outlooks</title>
+<description>National Hurricane Center Graphical Tropical Weather Outlooks</description>
+<link>https://www.nhc.noaa.gov/</link>
+<copyright>none</copyright>
+<managingEditor>nhcwebmaster@noaa.gov (NHC Webmaster)</managingEditor>
+<language>en-us</language>
+<webMaster>nhcwebmaster@noaa.gov (NHC Webmaster)</webMaster>
+<image>
+<url>https://www.nhc.noaa.gov/images/xml_logo_nhc.gif</url>
+<link>https://www.nhc.noaa.gov/</link>
+<title>National Hurricane Center Graphical Tropical Weather Outlooks</title>
+<description>NOAA logo</description>
+<width>95</width>
+<height>45</height>
+</image>
+<item>
+<title>NHC Atlantic Outlook</title>
+<description>
+<![CDATA[
+<br /><a href="https://www.nhc.noaa.gov/gtwo.php?basin=atlc&amp;fdays=2">
+<img src="https://www.nhc.noaa.gov/xgtwo/resize/two_atl_2d0_resize.gif" alt="Atlantic 2-Day Graphical Outlook Image" width="400" height="326" /></a>
+<br /><a href="https://www.nhc.noaa.gov/gtwo.php?basin=atlc&amp;fdays=7">
+<img src="https://www.nhc.noaa.gov/xgtwo/resize/two_atl_7d0_resize.gif" alt="Atlantic 7-Day Graphical Outlook Image" width="400" height="326" /></a>
+<br /><br />
+<div class='textbackground'><div class='textproduct'><br />
+ZCZC MIATWOAT ALL<br>TTAA00 KNHC DDHHMM<br><br>Tropical Weather Outlook<br>NWS National Hurricane Center Miami FL<br>800 AM EDT Mon Sep 2 2024<br><br>For the North Atlantic...Caribbean Sea and the Gulf of Mexico:<br><br>1. Northwestern Gulf of Mexico:<br>A broad and weak area of low pressure just offshore of the middle <br>Texas coast continues to produce some disorganized shower activity <br>along portions of the coast of Texas and over the adjacent waters of <br>the northwestern Gulf of Mexico. This system is expected to meander <br>for another day or so, and some slow development is possible if it <br>remains offshore.  On Tuesday, the low is forecast to move inland, <br>and further development is not expected.  Regardless, heavy rains <br>could cause some flash flooding across portions of the Texas coast <br>during the next couple of days.<br>* Formation chance through 48 hours...low...10 percent. <br>* Formation chance through 7 days...low...10 percent.<br><br />
+2. Near the Lesser Antilles and Caribbean Sea:<br>A tropical wave is producing disorganized thunderstorms and gusty <br>winds across portions of the Lesser Antilles, Puerto Rico, and over <br>the adjacent eastern Caribbean waters.  Environmental conditions are <br>forecast to become more conducive for development when the system <br>reaches the western Caribbean Sea and southwestern Gulf of Mexico <br>late this week and over the weekend, and a tropical depression could <br>form during that time.  <br>* Formation chance through 48 hours...low...near 0 percent. <br>* Formation chance through 7 days...medium...40 percent.<br><br />
+3. Eastern Tropical Atlantic Ocean:<br>A tropical wave just offshore of the west coast of Africa is <br>producing disorganized showers and thunderstorms.  Environmental <br>conditions are forecast to gradually become more conducive for <br>development, and a tropical depression could form in a few days <br>while the disturbance moves slowly west-northwestward or <br>northwestward over the eastern tropical Atlantic Ocean.  This system <br>could produce areas of heavy rain and gusty winds across portions of <br>the Cabo Verde Islands in a day or two.<br>* Formation chance through 48 hours...low...10 percent. <br>* Formation chance through 7 days...medium...40 percent.<br><br />
+<br>Forecaster Cangialosi<br></div></div><br />
+]]>
+</description>
+<pubDate>Mon, 02 Sep 2024 11:37:20 GMT</pubDate>
+<link>https://www.nhc.noaa.gov/gtwo.php?basin=atlc</link>
+<guid>https://www.nhc.noaa.gov/gtwo.php?basin=atlc&amp;202409021137</guid>
+<author>nhcwebmaster@noaa.gov (NHC Webmaster)</author>
+</item>
+<item>
+<title>NHC Eastern North Pacific Outlook</title>
+<description>
+<![CDATA[
+<br /><a href="https://www.nhc.noaa.gov/gtwo.php?basin=epac&amp;fdays=2">
+<img src="https://www.nhc.noaa.gov/xgtwo/resize/two_pac_2d0_resize.gif" alt="Eastern North Pacific 2-Day Graphical Outlook Image" width="400" height="326" /></a>
+<br /><a href="https://www.nhc.noaa.gov/gtwo.php?basin=epac&amp;fdays=7">
+<img src="https://www.nhc.noaa.gov/xgtwo/resize/two_pac_7d0_resize.gif" alt="Eastern North Pacific 7-Day Graphical Outlook Image" width="400" height="326" /></a>
+<br /><br />
+<div class='textbackground'><div class='textproduct'><br />
+ZCZC MIATWOEP ALL<br>TTAA00 KNHC DDHHMM<br><br>Tropical Weather Outlook<br>NWS National Hurricane Center Miami FL<br>500 AM PDT Mon Sep 2 2024<br><br>For the eastern North Pacific...east of 140 degrees west longitude:<br><br>Tropical cyclone formation is not expected during the next 7 days.<br><br>$$<br>Forecaster D. Zelinsky<br>NNNN<br><br></div></div><br />
+]]>
+</description>
+<pubDate>Mon, 02 Sep 2024 11:15:37 GMT</pubDate>
+<link>https://www.nhc.noaa.gov/gtwo.php?basin=epac</link>
+<guid>https://www.nhc.noaa.gov/gtwo.php?basin=epac&amp;202409021115</guid>
+<author>nhcwebmaster@noaa.gov (NHC Webmaster)</author>
+</item>
+<item>
+<title>CPHC Central North Pacific Outlook</title>
+<description>
+<![CDATA[
+<br /><a href="https://www.nhc.noaa.gov/gtwo.php?basin=cpac&amp;fdays=2">
+<img src="https://www.nhc.noaa.gov/xgtwo/resize/two_cpac_2d0_resize.gif" alt="Central North Pacific 2-Day Graphical Outlook Image" width="400" height="326" /></a>
+<br /><a href="https://www.nhc.noaa.gov/gtwo.php?basin=cpac&amp;fdays=7">
+<img src="https://www.nhc.noaa.gov/xgtwo/resize/two_cpac_7d0_resize.gif" alt="Central North Pacific 7-Day Graphical Outlook Image" width="400" height="326" /></a>
+<br /><br />
+<div class='textbackground'><div class='textproduct'><br />
+ZCZC HFOTWOCP ALL<br>TTAA00 PHFO DDHHMM<br><br>Tropical Weather Outlook<br>NWS Central Pacific Hurricane Center Honolulu HI<br>200 AM HST Mon Sep 2 2024<br><br>For the central North Pacific...between 140W and 180W:<br><br>No tropical cyclones are expected through the next 7 days.<br><br>$$<br>Forecaster Shigesato<br>NNNN<br><br></div></div><br />
+]]>
+</description>
+<pubDate>Mon, 02 Sep 2024 11:23:31 GMT</pubDate>
+<link>https://www.nhc.noaa.gov/gtwo.php?basin=cpac</link>
+<guid>https://www.nhc.noaa.gov/gtwo.php?basin=cpac&amp;202409021123</guid>
+<author>nhcwebmaster@noaa.gov (NHC Webmaster)</author>
+</item>
+</channel>
+</rss>
