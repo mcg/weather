@@ -5,7 +5,10 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "argparse>=1.4.0",
     "feedgen>=1.0.0",
+    "image>=1.5.33",
     "requests-cache>=1.2.1",
     "requests>=2.32.3",
+    "slack-sdk>=3.31.0",
 ]
