@@ -30,7 +30,6 @@ response = requests.get(url)
 if not response.from_cache:
     timestamp = int(time.time())
     # Save the image to a file
-    # image_file_name = f"{args.image_file_path}/two_atl_7d0_{timestamp}.png"
     image_file_name = f"{args.image_file_path}/two_atl_7d0.png"
     gif_file_name = f"{args.image_file_path}/two_atl_7d0.gif"
 
