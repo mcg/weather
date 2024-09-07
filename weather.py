@@ -79,12 +79,12 @@ if not response.from_cache:
     # Save the RSS feed to a file
     fg.rss_file(args.rss_file_path)
 
-    # Request an upload URL from Slack
+    # Setup Slack 
     slack_token = args.slack_token
     client = WebClient(token=slack_token)
 
     try:
-        # Request an upload URL from Slack
+        # Upload the files to Slack 
         response = client.files_upload_v2(
             file_uploads=[
                 {
