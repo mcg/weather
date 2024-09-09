@@ -55,7 +55,7 @@ if not response.from_cache:
             frames.append(new_frame)
 
         # Check if the number of frames is more than 30
-        if len(frames) >= 30:
+        if len(frames) >= 10:
             # Remove the first frame
             frames.pop(0)
 
