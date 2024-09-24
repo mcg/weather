@@ -31,6 +31,8 @@ def fetch_and_process_xml_feed(map_name):
     for title in titles:
         description = title.find_next('description').text
         cdata_soup = BeautifulSoup(description, 'html.parser')
+
+        #this assumes the first img tag we fins it the one we want, if noaa changes this, we break
         img_tag = cdata_soup.find('img', src=lambda src: map_name in src if src else False)
         if img_tag:
             storm_name = ''
