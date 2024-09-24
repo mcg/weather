@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "argparse>=1.4.0",
+    "bs4>=0.0.2",
     "feedgen>=1.0.0",
     "image>=1.5.33",
     "requests-cache>=1.2.1",

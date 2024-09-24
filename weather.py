@@ -1,67 +1,136 @@
 import os
+import re
 import time
-import argparse
 import requests
 import requests_cache
+from bs4 import BeautifulSoup
+import xml.etree.ElementTree as ET
 from PIL import Image, ImageSequence
+from feedgen.feed import FeedGenerator
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
-from feedgen.feed import FeedGenerator
-
-# Set up argument parser
-parser = argparse.ArgumentParser(description='Fetch weather image and update RSS feed.')
-parser.add_argument('rss_file_path', type=str, help='Path to save the RSS feed file.')
-parser.add_argument('image_file_path', type=str, help='Path to save the image file.')
-parser.add_argument('slack_webhook_url', type=str, help='Slack webhook URL to send notifications.')
-parser.add_argument('slack_token', type=str, help='Slack API token for uploading files.')
-
-args = parser.parse_args()
 
 # Set up the cache to respect HTTP cache headers
 requests_cache.install_cache('weather_cache', cache_control=True)
 
-# URL to fetch
-url = 'https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png'
+def fetch_and_process_xml_feed(map_name):
+    # Fetch the XML content from the URL
+    url = 'https://www.nhc.noaa.gov/index-at.xml'
+    response = requests.get(url)
+    xml_content = response.content
 
-# Make a conditional GET request
-response = requests.get(url)
+    # Parse the XML content
+    soup = BeautifulSoup(xml_content, 'xml')
 
-# Handle the response
-if not response.from_cache:
-    timestamp = int(time.time())
+    # Find all titles that include "Tropical Storm"
+    pattern = re.compile(r'.*Tropical Storm.*Graphics.*', re.IGNORECASE)
+    titles = soup.find_all('title', string=pattern)
+
+    cyclones = []
+    # Extract the img src
+    for title in titles:
+        description = title.find_next('description').text
+        cdata_soup = BeautifulSoup(description, 'html.parser')
+        img_tag = cdata_soup.find('img', src=lambda src: map_name in src if src else False)
+        if img_tag:
+            storm_name = ''
+            pattern = re.compile(r'Tropical Storm (.*?) Graphics', re.IGNORECASE)
+            match = pattern.search(title.text)
+            if match:
+                storm_name = match.group(1).strip()
+            cyclones.append({'storm_name': storm_name, 'image_url': img_tag['src']})
+    return cyclones
+
+def generate_cyclone_images(map_name, image_file_path):
+
+    cyclones = fetch_and_process_xml_feed(map_name)
+
+    for cyclone in cyclones:
+        response = requests.get(cyclone['image_url'])
+        image_file_name = f"{image_file_path}/{cyclone['storm_name']}_{map_name}.png"
+        gif_file_name = f"{image_file_path}/{cyclone['storm_name']}_{map_name}.gif"
+
+        all_images = []
+        # Handle the response
+        if not response.from_cache:
+            with open(image_file_name, 'wb') as image_file:
+                image_file.write(response.content)
+            
+            # Check if GIF file exists, if not copy the PNG file to GIF
+            if not os.path.exists(gif_file_name):
+                # Open the PNG file
+                with Image.open(image_file_name) as img:
+                    # Convert to GIF and save
+                    img.save(gif_file_name, 'GIF')
+            else:
+                # Open the existing GIF file
+                with Image.open(gif_file_name) as gif:
+                    # Extract all frames from the existing GIF
+                    frames = [frame.copy() for frame in ImageSequence.Iterator(gif)]
+
+                # Open the new frame image
+                with Image.open(image_file_name) as new_frame:
+                    new_frame = new_frame.convert('RGBA')
+                    # Append the new frame to the list of frames
+                    frames.append(new_frame)
+
+                # Check if the number of frames is more than 30
+                if len(frames) >= 10:
+                    # Remove the first frame
+                    frames.pop(0)
+
+                # Save the updated GIF with the new frame
+                frames[0].save(gif_file_name, save_all=True, append_images=frames[1:], loop=0, duration=500)
+                all_images.append({'png': image_file_name, 'gif': gif_file_name, 'name': cyclone['storm_name']})
+
+    return url, all_images, response
+
+def fetch_and_process_image(image_file_path):
+    # URL to fetch
+    url = 'https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png'
+
+    # Make a conditional GET request
+    response = requests.get(url)
+
     # Save the image to a file
-    image_file_name = f"{args.image_file_path}/two_atl_7d0.png"
-    gif_file_name = f"{args.image_file_path}/two_atl_7d0.gif"
+    image_file_name = f"{image_file_path}/two_atl_7d0.png"
+    gif_file_name = f"{image_file_path}/two_atl_7d0.gif"
 
-    with open(image_file_name, 'wb') as image_file:
-        image_file.write(response.content)
-    
-    # Check if GIF file exists, if not copy the PNG file to GIF
-    if not os.path.exists(gif_file_name):
-        # Open the PNG file
-        with Image.open(image_file_name) as img:
-            # Convert to GIF and save
-            img.save(gif_file_name, 'GIF')
-    else:
-        # Open the existing GIF file
-        with Image.open(gif_file_name) as gif:
-            # Extract all frames from the existing GIF
-           frames = [frame.copy() for frame in ImageSequence.Iterator(gif)]
+    # Handle the response
+    if not response.from_cache:
+        with open(image_file_name, 'wb') as image_file:
+            image_file.write(response.content)
+        
+        # Check if GIF file exists, if not copy the PNG file to GIF
+        if not os.path.exists(gif_file_name):
+            # Open the PNG file
+            with Image.open(image_file_name) as img:
+                # Convert to GIF and save
+                img.save(gif_file_name, 'GIF')
+        else:
+            # Open the existing GIF file
+            with Image.open(gif_file_name) as gif:
+                # Extract all frames from the existing GIF
+                frames = [frame.copy() for frame in ImageSequence.Iterator(gif)]
 
-        # Open the new frame image
-        with Image.open(image_file_name) as new_frame:
-            new_frame = new_frame.convert('RGBA')
-            # Append the new frame to the list of frames
-            frames.append(new_frame)
+            # Open the new frame image
+            with Image.open(image_file_name) as new_frame:
+                new_frame = new_frame.convert('RGBA')
+                # Append the new frame to the list of frames
+                frames.append(new_frame)
 
-        # Check if the number of frames is more than 30
-        if len(frames) >= 10:
-            # Remove the first frame
-            frames.pop(0)
+            # Check if the number of frames is more than 30
+            if len(frames) >= 10:
+                # Remove the first frame
+                frames.pop(0)
 
-        # Save the updated GIF with the new frame
-        frames[0].save(gif_file_name, save_all=True, append_images=frames[1:], loop=0, duration=500)
+            # Save the updated GIF with the new frame
+            frames[0].save(gif_file_name, save_all=True, append_images=frames[1:], loop=0, duration=500)
 
+    return url, image_file_name, gif_file_name, response
+
+def generate_rss_feed(url, rss_file_path, response):
+    timestamp = int(time.time())
     # Generate RSS feed
     fg = FeedGenerator()
     fg.title('Seven-Day Atlantic Graphical Tropical Weather Outlook')
@@ -77,29 +146,63 @@ if not response.from_cache:
     fe.id(guid)
 
     # Save the RSS feed to a file
-    fg.rss_file(args.rss_file_path)
+    fg.rss_file(rss_file_path)
 
+def upload_to_slack(images, image_file_name, gif_file_name, slack_token):
     # Setup Slack 
-    slack_token = args.slack_token
     client = WebClient(token=slack_token)
+    file_uploads=[
+        {
+        "file": image_file_name,
+        "title": "Seven-Day Outlook",
+        },
+        {
+        "file": gif_file_name,
+        "title": "Last 30 maps",
+        },
+    ]
+
+    for i in images:
+        file_uploads.append(
+            {
+            "file": i['png'],
+            "title": i['name'],
+            }
+        )
+        file_uploads.append(
+            {
+            "file": i['gif'],
+            "title": i['name'],
+            }
+        )
 
     try:
         # Upload the files to Slack 
         response = client.files_upload_v2(
-            file_uploads=[
-                {
-                "file": image_file_name,
-                "title": "Seven-Day Outlook",
-                },
-                {
-                "file": gif_file_name,
-                "title": "Last 30 maps",
-                },
-            ],
-            channel="C2BRCNET1",
-            #channel="C07KTS31M1T", test channel
+            file_uploads=file_uploads,
+            # Active channel
+            #channel="C2BRCNET1",
+            # test channel
+            channel="C07KTS31M1T",
             initial_comment="Atlantic Tropical Weather Update",
         )
 
     except SlackApiError as e:
         raise ValueError(f"Slack API error: {e.response['error']}")
+
+# Example usage
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Fetch and process weather images.')
+    parser.add_argument('rss_file_path', type=str, help='Path to save the RSS feed file.')
+    parser.add_argument('image_file_path', type=str, help='Path to save the image file.')
+    parser.add_argument('slack_webhook_url', type=str, help='Slack webhook URL to send notifications.')
+    parser.add_argument('slack_token', type=str, help='Slack API token for uploading files.')
+
+    args = parser.parse_args()
+
+    url, image_file_name, gif_file_name, response = fetch_and_process_image(args.image_file_path)
+    url, images, response = generate_cyclone_images('5day_cone_with_line_and_wind',args.image_file_path)
+    generate_rss_feed(url, args.rss_file_path, response)
+    upload_to_slack(images, image_file_name, gif_file_name, args.slack_token)
