@@ -151,7 +151,7 @@ def generate_rss_feed(url, rss_file_path, response):
     fg.rss_file(rss_file_path)
 
 
-def upload_to_slack(images, image_file_name, gif_file_name, slack_token, image_response, cyclone_response):
+def upload_to_slack(images, image_file_name, gif_file_name, slack_token, image_response):
     # Setup Slack
     client = WebClient(token=slack_token)
 
