@@ -23,7 +23,7 @@ def fetch_and_process_xml_feed(map_name):
     soup = BeautifulSoup(xml_content, 'xml')
 
     # Find all titles that include "Tropical Storm"
-    pattern = re.compile(r'.*Tropical Storm.*Graphics.*', re.IGNORECASE)
+    pattern = re.compile(r'.*(Tropical Storm|Hurricane).*Graphics.*', re.IGNORECASE)
     titles = soup.find_all('title', string=pattern)
 
     cyclones = []
@@ -36,10 +36,10 @@ def fetch_and_process_xml_feed(map_name):
         img_tag = cdata_soup.find('img', src=lambda src: map_name in src if src else False)
         if img_tag:
             storm_name = ''
-            pattern = re.compile(r'Tropical Storm (.*?) Graphics', re.IGNORECASE)
+            pattern = re.compile(r'(Tropical\sStorm|Hurricane) (.*?) Graphics', re.IGNORECASE)
             match = pattern.search(title.text)
             if match:
-                storm_name = match.group(1).strip()
+                storm_name = match.group(2).strip()
             cyclones.append({'storm_name': storm_name, 'image_url': img_tag['src']})
     return cyclones
 
