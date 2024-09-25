@@ -46,13 +46,13 @@ def fetch_and_process_xml_feed(map_name):
 def generate_cyclone_images(map_name, image_file_path):
 
     cyclones = fetch_and_process_xml_feed(map_name)
+    all_images = []
 
     for cyclone in cyclones:
         response = requests.get(cyclone['image_url'])
         image_file_name = f"{image_file_path}/{cyclone['storm_name']}_{map_name}.png"
         gif_file_name = f"{image_file_path}/{cyclone['storm_name']}_{map_name}.gif"
 
-        all_images = []
         # Handle the response
         if not response.from_cache:
             with open(image_file_name, 'wb') as image_file:
@@ -83,9 +83,9 @@ def generate_cyclone_images(map_name, image_file_path):
 
                 # Save the updated GIF with the new frame
                 frames[0].save(gif_file_name, save_all=True, append_images=frames[1:], loop=0, duration=500)
-                all_images.append({'png': image_file_name, 'gif': gif_file_name, 'name': cyclone['storm_name']})
+                all_images.append({'png': image_file_name, 'gif': gif_file_name, 'name': cyclone['storm_name', 'response': response]})
 
-    return url, all_images, response
+    return url, all_images
 
 def fetch_and_process_image(image_file_path):
     # URL to fetch
@@ -167,8 +167,8 @@ def upload_to_slack(images, image_file_name, gif_file_name, slack_token, image_r
             "title": "Last 30 maps",
             },
         ]
-    if not cyclone_response.from_cache:
-        for i in images:
+    for i in images:
+        if not i[response].from_cache:
             file_uploads.append(
                 {
                 "file": i['png'],
@@ -208,6 +208,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     url, image_file_name, gif_file_name, image_response = fetch_and_process_image(args.image_file_path)
-    url, images, cyclone_response = generate_cyclone_images('5day_cone_with_line_and_wind',args.image_file_path)
+    url, images = generate_cyclone_images('5day_cone_with_line_and_wind',args.image_file_path)
     generate_rss_feed(url, args.rss_file_path, image_response)
-    upload_to_slack(images, image_file_name, gif_file_name, args.slack_token, image_response, cyclone_response)
+    upload_to_slack(images, image_file_name, gif_file_name, args.slack_token, image_response)
