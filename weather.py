@@ -83,7 +83,7 @@ def generate_cyclone_images(map_name, image_file_path):
 
                 # Save the updated GIF with the new frame
                 frames[0].save(gif_file_name, save_all=True, append_images=frames[1:], loop=0, duration=500)
-                all_images.append({'png': image_file_name, 'gif': gif_file_name, 'name': cyclone['storm_name', 'response': response]})
+                all_images.append({'png': image_file_name, 'gif': gif_file_name, 'name': cyclone['storm_name'], 'response': response})
 
     return url, all_images
 
@@ -168,7 +168,7 @@ def upload_to_slack(images, image_file_name, gif_file_name, slack_token, image_r
             },
         ]
     for i in images:
-        if not i[response].from_cache:
+        if not i['response'].from_cache:
             file_uploads.append(
                 {
                 "file": i['png'],
