@@ -150,36 +150,40 @@ def generate_rss_feed(url, rss_file_path, response):
     # Save the RSS feed to a file
     fg.rss_file(rss_file_path)
 
-def upload_to_slack(images, image_file_name, gif_file_name, slack_token):
-    # Setup Slack 
-    client = WebClient(token=slack_token)
-    file_uploads=[
-        {
-        "file": image_file_name,
-        "title": "Seven-Day Outlook",
-        },
-        {
-        "file": gif_file_name,
-        "title": "Last 30 maps",
-        },
-    ]
 
-    for i in images:
-        file_uploads.append(
+def upload_to_slack(images, image_file_name, gif_file_name, slack_token, image_response, cyclone_response):
+    # Setup Slack
+    client = WebClient(token=slack_token)
+
+    file_uploads = []
+    if not image_response.from_cache:
+        file_uploads=[
             {
-            "file": i['png'],
-            "title": i['name'],
-            }
-        )
-        file_uploads.append(
+            "file": image_file_name,
+            "title": "Seven-Day Outlook",
+            },
             {
-            "file": i['gif'],
-            "title": i['name'],
-            }
-        )
+            "file": gif_file_name,
+            "title": "Last 30 maps",
+            },
+        ]
+    if not cyclone_response.from_cache:
+        for i in images:
+            file_uploads.append(
+                {
+                "file": i['png'],
+                "title": i['name'],
+                }
+            )
+            file_uploads.append(
+                {
+                "file": i['gif'],
+                "title": i['name'],
+                }
+            )
 
     try:
-        # Upload the files to Slack 
+        # Upload the files to Slack
         response = client.files_upload_v2(
             file_uploads=file_uploads,
             # Active channel
@@ -192,7 +196,6 @@ def upload_to_slack(images, image_file_name, gif_file_name, slack_token):
     except SlackApiError as e:
         raise ValueError(f"Slack API error: {e.response['error']}")
 
-# Example usage
 if __name__ == "__main__":
     import argparse
 
@@ -204,7 +207,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    url, image_file_name, gif_file_name, response = fetch_and_process_image(args.image_file_path)
-    url, images, response = generate_cyclone_images('5day_cone_with_line_and_wind',args.image_file_path)
-    generate_rss_feed(url, args.rss_file_path, response)
-    upload_to_slack(images, image_file_name, gif_file_name, args.slack_token)
+    url, image_file_name, gif_file_name, image_response = fetch_and_process_image(args.image_file_path)
+    url, images, cyclone_response = generate_cyclone_images('5day_cone_with_line_and_wind',args.image_file_path)
+    generate_rss_feed(url, args.rss_file_path, image_response)
+    upload_to_slack(images, image_file_name, gif_file_name, args.slack_token, image_response, cyclone_response)
