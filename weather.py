@@ -56,6 +56,7 @@ def generate_cyclone_images(map_name, image_file_path):
 
         # Handle the response
         if not response.from_cache:
+            print(f"{cyclone['storm_name']} image not from cache")
             with open(image_file_name, 'wb') as image_file:
                 image_file.write(response.content)
             
@@ -92,6 +93,7 @@ def fetch_and_process_image(image_file_path):
     # URL to fetch
     url = 'https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png'
 
+    print(f"Fetching static image from {url}")
     # Make a conditional GET request
     response = requests.get(url)
 
@@ -101,7 +103,7 @@ def fetch_and_process_image(image_file_path):
 
     # Handle the response
     if not response.from_cache:
-        print(f"Saving image to {image_file_name}")
+        print(f"Saving new static image to {image_file_name}")
         with open(image_file_name, 'wb') as image_file:
             image_file.write(response.content)
         
