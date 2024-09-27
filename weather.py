@@ -40,7 +40,9 @@ def fetch_and_process_xml_feed(map_name):
             match = pattern.search(title.text)
             if match:
                 storm_name = match.group(2).strip()
-            cyclones.append({'storm_name': storm_name, 'image_url': img_tag['src']})
+                storm_type = match.group(1).strip()
+            if storm_type == 'Hurricane':
+                cyclones.append({'storm_name': storm_name, 'image_url': img_tag['src']})
     return cyclones
 
 def generate_cyclone_images(map_name, image_file_path):
