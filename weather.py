@@ -52,7 +52,12 @@ def generate_cyclone_images(map_name, image_file_path):
 
     for cyclone in cyclones:
         print(f"Fetching image for {cyclone['storm_name']}")
-        response = requests.get(cyclone['image_url'])
+        try:
+            response = requests.get(cyclone['image_url'])
+            response.raise_for_status()  # Raise an exception for HTTP errors
+        except requests.exceptions.RequestException as e:
+            print(f"Failed to fetch image for {cyclone['storm_name']}: {e}")
+            continue
         image_file_name = f"{image_file_path}/{cyclone['storm_name']}_{map_name}.png"
         gif_file_name = f"{image_file_path}/{cyclone['storm_name']}_{map_name}.gif"
 
