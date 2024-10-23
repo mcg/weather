@@ -22,7 +22,6 @@ def fetch_xml_feed():
     # Parse the XML content
     soup = BeautifulSoup(xml_content, 'xml')
     no_storms = soup.find(string=re.compile(r'Tropical cyclone formation is not expected during the next 7 days', re.IGNORECASE)) is not None
-    print(f"No storms expected: {no_storms}")
 
     return no_storms, soup
 
