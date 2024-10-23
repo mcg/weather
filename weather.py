@@ -13,7 +13,20 @@ from slack_sdk.errors import SlackApiError
 # Set up the cache to respect HTTP cache headers
 requests_cache.install_cache('weather_cache', cache_control=True)
 
-def fetch_and_process_xml_feed(map_name):
+def fetch_xml_feed():
+    # Fetch the XML content from the URL
+    url = 'https://www.nhc.noaa.gov/index-at.xml'
+    response = requests.get(url)
+    xml_content = response.content
+
+    # Parse the XML content
+    soup = BeautifulSoup(xml_content, 'xml')
+    no_storms = soup.find(string=re.compile(r'Tropical cyclone formation is not expected during the next 7 days', re.IGNORECASE)) is not None
+    print(f"No storms expected: {no_storms}")
+
+    return no_storms, soup
+
+def find_cyclones_in_feed(soup, map_name):
     # Fetch the XML content from the URL
     url = 'https://www.nhc.noaa.gov/index-at.xml'
     response = requests.get(url)
@@ -40,24 +53,19 @@ def fetch_and_process_xml_feed(map_name):
             match = pattern.search(title.text)
             if match:
                 storm_name = match.group(2).strip()
-                # storm_type = match.group(1).strip()
-                # if storm_type == 'Hurricane':
-                cyclones.append({'storm_name': storm_name, 'image_url': img_tag['src']})
+                storm_type = match.group(1).strip()
+                if storm_type == 'Hurricane':
+                    cyclones.append({'storm_name': storm_name, 'image_url': img_tag['src']})
     return cyclones
 
-def generate_cyclone_images(map_name, image_file_path):
+def generate_cyclone_images(soup, map_name, image_file_path):
 
-    cyclones = fetch_and_process_xml_feed(map_name)
+    cyclones = find_cyclones_in_feed(soup, map_name)
     all_images = []
 
     for cyclone in cyclones:
         print(f"Fetching image for {cyclone['storm_name']}")
-        try:
-            response = requests.get(cyclone['image_url'])
-            response.raise_for_status()  # Raise an exception for HTTP errors
-        except requests.exceptions.RequestException as e:
-            print(f"Failed to fetch image for {cyclone['storm_name']}: {e}")
-            continue
+        response = requests.get(cyclone['image_url'])
         image_file_name = f"{image_file_path}/{cyclone['storm_name']}_{map_name}.png"
         gif_file_name = f"{image_file_path}/{cyclone['storm_name']}_{map_name}.gif"
 
@@ -218,7 +226,11 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    url, image_file_name, gif_file_name, image_response = fetch_and_process_image(args.image_file_path)
-    url, images = generate_cyclone_images('5day_cone_with_line_and_wind',args.image_file_path)
-    generate_rss_feed(url, args.rss_file_path, image_response)
-    upload_to_slack(images, image_file_name, gif_file_name, args.slack_token, image_response)
+    no_storms, soup = fetch_xml_feed()
+    if no_storms is False:
+        url, image_file_name, gif_file_name, image_response = fetch_and_process_image(args.image_file_path)
+        url, images = generate_cyclone_images(soup, '5day_cone_with_line_and_wind',args.image_file_path)
+        generate_rss_feed(url, args.rss_file_path, image_response)
+        upload_to_slack(images, image_file_name, gif_file_name, args.slack_token, image_response)
+    else:
+        print("No tropical cyclones expected in the next 7 days.")
