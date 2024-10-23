@@ -26,14 +26,6 @@ def fetch_xml_feed():
     return no_storms, soup
 
 def find_cyclones_in_feed(soup, map_name):
-    # Fetch the XML content from the URL
-    url = 'https://www.nhc.noaa.gov/index-at.xml'
-    response = requests.get(url)
-    xml_content = response.content
-
-    # Parse the XML content
-    soup = BeautifulSoup(xml_content, 'xml')
-
     # Find all titles that include "Tropical Storm"
     pattern = re.compile(r'.*(Tropical Storm|Hurricane).*Graphics.*', re.IGNORECASE)
     titles = soup.find_all('title', string=pattern)
