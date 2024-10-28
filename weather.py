@@ -206,6 +206,13 @@ def upload_to_slack(images, image_file_name, gif_file_name, slack_token, image_r
     except SlackApiError as e:
         raise ValueError(f"Slack API error: {e.response['error']}")
 
+def delete_images(image_file_path):
+    for file_name in os.listdir(image_file_path):
+        if file_name.endswith('.png') or file_name.endswith('.gif'):
+            file_path = os.path.join(image_file_path, file_name)
+            os.remove(file_path)
+            print(f"Deleted {file_path}")
+
 if __name__ == "__main__":
     import argparse
 
@@ -225,3 +232,5 @@ if __name__ == "__main__":
         upload_to_slack(images, image_file_name, gif_file_name, args.slack_token, image_response)
     else:
         print("No tropical cyclones expected in the next 7 days.")
+        print("Cleaning up old image cache files.")
+        delete_images(args.image_file_path)
