@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 import xml.etree.ElementTree as ET
 from PIL import Image, ImageSequence
 from feedgen.feed import FeedGenerator
+from discord import SyncWebhook, File, Embed
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
@@ -161,7 +162,7 @@ def generate_rss_feed(url, rss_file_path, response):
     fg.rss_file(rss_file_path)
 
 
-def upload_to_slack(images, image_file_name, gif_file_name, slack_token, image_response):
+def upload_to_slack_and_discord(images, image_file_name, gif_file_name, slack_token, discord_webhook_url, image_response):
     # Setup Slack
     client = WebClient(token=slack_token)
 
@@ -177,6 +178,7 @@ def upload_to_slack(images, image_file_name, gif_file_name, slack_token, image_r
             "title": "Last 30 maps",
             },
         ]
+
     for i in images:
         print(f"Uploading {i['name']} to slack")
         file_uploads.append(
@@ -205,6 +207,18 @@ def upload_to_slack(images, image_file_name, gif_file_name, slack_token, image_r
 
     except SlackApiError as e:
         raise ValueError(f"Slack API error: {e.response['error']}")
+    
+    # Setup Discord
+    webhook = SyncWebhook.from_url(discord_webhook_url)
+    if not image_response.from_cache:
+        print(f"Uploading {image_file_name} and {gif_file_name} to discord")
+        with open(image_file_name, 'rb') as img_file, open(gif_file_name, 'rb') as gif_file:
+            webhook.send(content="Seven-Day Outlook and Last 30 Maps", files=[File(img_file, filename=image_file_name), File(gif_file, filename=gif_file_name)])
+
+    for i in images:
+        print(f"Uploading {i['name']} to Discord")
+        with open(i['gif'], 'rb') as gif_file, open(i['png'], 'rb') as image_file:
+            webhook.send(content=f"**{i['name']}**", files=[File(image_file, filename=i['png']), File(gif_file, filename=i['gif'])])
 
 def delete_images(image_file_path):
     for file_name in os.listdir(image_file_path):
@@ -221,6 +235,8 @@ if __name__ == "__main__":
     parser.add_argument('image_file_path', type=str, help='Path to save the image file.')
     parser.add_argument('slack_webhook_url', type=str, help='Slack webhook URL to send notifications.')
     parser.add_argument('slack_token', type=str, help='Slack API token for uploading files.')
+    parser.add_argument('discord_webhook_url', type=str, help='Discord webhook URL for posting images.')
+
 
     args = parser.parse_args()
 
@@ -229,7 +245,7 @@ if __name__ == "__main__":
         url, image_file_name, gif_file_name, image_response = fetch_and_process_image(args.image_file_path)
         url, images = generate_cyclone_images(soup, '5day_cone_with_line_and_wind',args.image_file_path)
         generate_rss_feed(url, args.rss_file_path, image_response)
-        upload_to_slack(images, image_file_name, gif_file_name, args.slack_token, image_response)
+        upload_to_slack_and_discord(images, image_file_name, gif_file_name, args.slack_token, args.discord_webhook_url, image_response)
     else:
         print("No tropical cyclones expected in the next 7 days.")
         print("Cleaning up old image cache files.")
