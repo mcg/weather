@@ -37,7 +37,7 @@ def find_cyclones_in_feed(soup, map_name):
         description = title.find_next('description').text
         cdata_soup = BeautifulSoup(description, 'html.parser')
 
-        #this assumes the first img tag we fins it the one we want, if noaa changes this, we break
+        #this assumes the first img tag we find is the one we want, if noaa changes this, we break
         img_tag = cdata_soup.find('img', src=lambda src: map_name in src if src else False)
         if img_tag:
             storm_name = ''
@@ -85,7 +85,7 @@ def generate_cyclone_images(soup, map_name, image_file_path):
                     # Append the new frame to the list of frames
                     frames.append(new_frame)
 
-                # Check if the number of frames is more than 30
+                # Check if the number of frames is more than 10
                 if len(frames) >= 10:
                     # Remove the first frame
                     frames.pop(0)
