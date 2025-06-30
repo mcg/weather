@@ -1,4 +1,5 @@
 import os
+import pytz
 import re
 import time
 import requests
@@ -10,6 +11,7 @@ from feedgen.feed import FeedGenerator
 from discord import SyncWebhook, File, Embed
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+from email.utils import parsedate_to_datetime
 
 # Set up the cache to respect HTTP cache headers
 requests_cache.install_cache('weather_cache', cache_control=True)
@@ -163,6 +165,12 @@ def generate_rss_feed(url, rss_file_path, response):
 
 
 def upload_to_slack_and_discord(images, image_file_name, gif_file_name, slack_token, discord_webhook_url, image_response):
+    # Parse Last-Modified header and convert to Eastern Time
+    last_modified_utc = parsedate_to_datetime(image_response.headers['Last-Modified'])
+    eastern = pytz.timezone('US/Eastern')
+    last_modified_et = last_modified_utc.astimezone(eastern)
+    last_modified = last_modified_et.strftime('%Y-%m-%d %I:%M %p %Z')
+
     # Setup Slack
     client = WebClient(token=slack_token)
 
@@ -202,7 +210,7 @@ def upload_to_slack_and_discord(images, image_file_name, gif_file_name, slack_to
             channel="C2BRCNET1",
             # test channel
             #channel="C07KTS31M1T",
-            initial_comment="Atlantic Tropical Weather Update",
+            initial_comment="Atlantic Tropical Weather Update - Last Modified: " + last_modified,
         )
 
     except SlackApiError as e:
@@ -213,7 +221,7 @@ def upload_to_slack_and_discord(images, image_file_name, gif_file_name, slack_to
     if not image_response.from_cache:
         print(f"Uploading {image_file_name} and {gif_file_name} to discord")
         with open(image_file_name, 'rb') as img_file, open(gif_file_name, 'rb') as gif_file:
-            webhook.send(content="Seven-Day Outlook and Last 30 Maps", files=[File(img_file, filename=image_file_name), File(gif_file, filename=gif_file_name)])
+            webhook.send(content="Seven-Day Outlook and Map Loop", files=[File(img_file, filename=image_file_name), File(gif_file, filename=gif_file_name)])
 
     for i in images:
         print(f"Uploading {i['name']} to Discord")

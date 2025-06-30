@@ -13,4 +13,5 @@ dependencies = [
     "requests>=2.32.3",
     "slack-sdk>=3.31.0",
     "discord-py>=2.4.0",
+    "pytz>=2025.2",
 ]
