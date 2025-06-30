@@ -2,3 +2,4 @@ weather_feed.xml
 weather_cache.sqlite
 
 img
+*.xml
