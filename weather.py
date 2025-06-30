@@ -6,15 +6,50 @@ import requests
 import requests_cache
 from bs4 import BeautifulSoup
 import xml.etree.ElementTree as ET
-from PIL import Image, ImageSequence
+from PIL import Image, ImageSequence, ImageChops
 from feedgen.feed import FeedGenerator
 from discord import SyncWebhook, File, Embed
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from email.utils import parsedate_to_datetime
+from io import BytesIO
 
 # Set up the cache to respect HTTP cache headers
 requests_cache.install_cache('weather_cache', cache_control=True)
+
+def images_are_identical(image1_path, image2_content):
+    """
+    Compare an existing image file with new image content to check if they are identical.
+    
+    Args:
+        image1_path: Path to the existing image file
+        image2_content: Bytes content of the new image
+    
+    Returns:
+        bool: True if images are identical, False otherwise
+    """
+    if not os.path.exists(image1_path):
+        return False
+    
+    try:
+        # Open existing image
+        with Image.open(image1_path) as existing_img:
+            # Create a temporary image from the new content
+            with Image.open(BytesIO(image2_content)) as new_img:
+                # Convert both to the same mode for comparison
+                existing_img = existing_img.convert('RGB')
+                new_img = new_img.convert('RGB')
+                
+                # Compare dimensions first
+                if existing_img.size != new_img.size:
+                    return False
+                
+                # Compare pixel by pixel
+                diff = ImageChops.difference(existing_img, new_img)
+                return not diff.getbbox()  # getbbox() returns None if images are identical
+    except Exception as e:
+        print(f"Error comparing images: {e}")
+        return False
 
 def fetch_xml_feed():
     # Fetch the XML content from the URL
@@ -65,7 +100,15 @@ def generate_cyclone_images(soup, map_name, image_file_path):
 
         # Handle the response
         if not response.from_cache:
-            print(f"{cyclone['storm_name']} image not from cache")
+            # Check if the new image is identical to the existing one
+            if images_are_identical(image_file_name, response.content):
+                print(f"{cyclone['storm_name']} image is identical to existing, skipping save")
+                # Still add to all_images if we have existing files
+                if os.path.exists(image_file_name) and os.path.exists(gif_file_name):
+                    all_images.append({'png': image_file_name, 'gif': gif_file_name, 'name': cyclone['storm_name']})
+                continue
+            
+            print(f"{cyclone['storm_name']} image not from cache and differs from existing")
             with open(image_file_name, 'wb') as image_file:
                 image_file.write(response.content)
             
@@ -94,7 +137,8 @@ def generate_cyclone_images(soup, map_name, image_file_path):
 
                 # Save the updated GIF with the new frame
                 frames[0].save(gif_file_name, save_all=True, append_images=frames[1:], loop=0, duration=500)
-                all_images.append({'png': image_file_name, 'gif': gif_file_name, 'name': cyclone['storm_name']})
+            
+            all_images.append({'png': image_file_name, 'gif': gif_file_name, 'name': cyclone['storm_name']})
 
     return url, all_images
 
@@ -112,6 +156,11 @@ def fetch_and_process_image(image_file_path):
 
     # Handle the response
     if not response.from_cache:
+        # Check if the new image is identical to the existing one
+        if images_are_identical(image_file_name, response.content):
+            print(f"Static image is identical to existing, skipping save")
+            return url, image_file_name, gif_file_name, response
+        
         print(f"Saving new static image to {image_file_name}")
         with open(image_file_name, 'wb') as image_file:
             image_file.write(response.content)
