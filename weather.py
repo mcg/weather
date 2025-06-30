@@ -170,6 +170,7 @@ def upload_to_slack_and_discord(images, image_file_name, gif_file_name, slack_to
     eastern = pytz.timezone('US/Eastern')
     last_modified_et = last_modified_utc.astimezone(eastern)
     last_modified = last_modified_et.strftime('%Y-%m-%d %I:%M %p %Z')
+    etag = response.headers.get('ETag', 'No ETag provided')
 
     # Setup Slack
     client = WebClient(token=slack_token)
@@ -210,7 +211,7 @@ def upload_to_slack_and_discord(images, image_file_name, gif_file_name, slack_to
             channel="C2BRCNET1",
             # test channel
             #channel="C07KTS31M1T",
-            initial_comment="Atlantic Tropical Weather Update - Last Modified: " + last_modified,
+            initial_comment="Atlantic Tropical Weather Update - Last Modified: " + last_modified + " ETag: " + etag,
         )
 
     except SlackApiError as e:
