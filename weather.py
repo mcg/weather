@@ -256,9 +256,9 @@ def upload_to_slack_and_discord(images, image_file_name, gif_file_name, slack_to
         response = client.files_upload_v2(
             file_uploads=file_uploads,
             # Active channel
-            channel="C2BRCNET1",
+            #channel="C2BRCNET1",
             # test channel
-            #channel="C07KTS31M1T",
+            channel="C07KTS31M1T",
             initial_comment="Atlantic Tropical Weather Update - Last Modified: " + last_modified,
         )
 
