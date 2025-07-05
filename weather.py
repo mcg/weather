@@ -218,9 +218,9 @@ def upload_to_slack_and_discord(static_image_data, cyclone_images, slack_token, 
         try:
             response = client.files_upload_v2(
                 file_uploads=file_uploads,
-                #channel="C2BRCNET1",  # Active channel
+                channel="C2BRCNET1",  # Active channel
                 # test channel
-                channel="C07KTS31M1T",
+                # channel="C07KTS31M1T",
                 initial_comment="Atlantic Tropical Weather Update",
             )
         except SlackApiError as e:
