@@ -14,16 +14,21 @@ from slack_sdk.errors import SlackApiError
 from email.utils import parsedate_to_datetime
 import logging
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('weather.log'),
-        logging.StreamHandler()
-    ]
-)
+# Configure logging (will be set up later based on arguments)
 logger = logging.getLogger(__name__)
+
+def setup_logging(log_file_path=None):
+    """Set up logging configuration."""
+    handlers = [logging.StreamHandler()]
+    
+    if log_file_path:
+        handlers.append(logging.FileHandler(log_file_path))
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=handlers
+    )
 
 # Set up the cache to respect HTTP cache headers
 requests_cache.install_cache('weather_cache', cache_control=True)
@@ -305,8 +310,12 @@ if __name__ == "__main__":
     parser.add_argument('slack_webhook_url', type=str, help='Slack webhook URL to send notifications.')
     parser.add_argument('slack_token', type=str, help='Slack API token for uploading files.')
     parser.add_argument('discord_webhook_url', type=str, help='Discord webhook URL for posting images.')
+    parser.add_argument('--log-file', type=str, help='Path to log file (optional).')
 
     args = parser.parse_args()
+    
+    # Set up logging with optional file logging
+    setup_logging(args.log_file)
     
     logger.info("Starting weather image processing")
     logger.info(f"RSS file path: {args.rss_file_path}")
