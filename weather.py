@@ -46,6 +46,9 @@ def fetch_xml_feed():
     # Parse the XML content
     soup = BeautifulSoup(xml_content, 'xml')
     no_storms = soup.find(string=re.compile(r'Tropical cyclone formation is not expected during the next 7 days', re.IGNORECASE)) is not None
+
+    if no_storms:
+        logger.info("No tropical cyclones expected in the next 7 days found")
     
     # Check for active storms
     titles = soup.find_all('title', string=storm_pattern)
@@ -71,8 +74,7 @@ def find_cyclones_in_feed(soup, map_name):
         # Find the img tag for the specific map
         img_tag = cdata_soup.find('img', src=lambda src: map_name in src if src else False)
         if img_tag:
-            pattern = re.compile(r'(Tropical\sStorm|Hurricane) (.*?) Graphics', re.IGNORECASE)
-            match = pattern.search(title.text)
+            match = storm_pattern.search(title.text)
             if match:
                 storm_name = match.group(2).strip()
                 storm_type = match.group(1).strip()
