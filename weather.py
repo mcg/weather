@@ -74,7 +74,8 @@ def find_cyclones_in_feed(soup, map_name):
         # Find the img tag for the specific map
         img_tag = cdata_soup.find('img', src=lambda src: map_name in src if src else False)
         if img_tag:
-            match = storm_pattern.search(title.text)
+            pattern = re.compile(r'(Post-Tropical\sCyclone|Tropical\sStorm|Hurricane) (.*?) Graphics', re.IGNORECASE)
+            match = pattern.search(title.text)
             if match:
                 storm_name = match.group(2).strip()
                 storm_type = match.group(1).strip()
