@@ -6,7 +6,7 @@ import requests
 import requests_cache
 from bs4 import BeautifulSoup
 import xml.etree.ElementTree as ET
-from PIL import Image, ImageSequence
+from PIL import Image, ImageSequence, ImageChops
 from feedgen.feed import FeedGenerator
 from discord import SyncWebhook, File, Embed
 from slack_sdk import WebClient
@@ -100,7 +100,7 @@ def fetch_and_process_single_image(url, image_file_path, name, max_frames=10):
         max_frames: Maximum number of frames to keep in GIF
     
     Returns:
-        tuple: (png_filename, gif_filename, response)
+        tuple: (png_filename, gif_filename, response, is_new_image)
     """
     logger.info(f"Fetching image: {name}")
     response = requests.get(url)
@@ -111,18 +111,33 @@ def fetch_and_process_single_image(url, image_file_path, name, max_frames=10):
     # Handle caching
     if response.from_cache:
         logger.info(f"{name} image from cache")
-        return png_filename, gif_filename, response
+        return png_filename, gif_filename, response, False
     
     logger.info(f"{name} image not from cache")
     
-    # Save PNG file
-    with open(png_filename, 'wb') as image_file:
+    # Save new image to temporary file first for comparison
+    temp_png = f"{png_filename}.tmp"
+    with open(temp_png, 'wb') as image_file:
         image_file.write(response.content)
     
-    # Process GIF
-    _process_gif(png_filename, gif_filename, max_frames)
+    # Compare with existing image
+    is_new_image = images_are_different(temp_png, png_filename)
     
-    return png_filename, gif_filename, response
+    if is_new_image:
+        logger.info(f"{name} image is different, processing")
+        # Replace the old image with the new one
+        if os.path.exists(png_filename):
+            os.remove(png_filename)
+        os.rename(temp_png, png_filename)
+        
+        # Process GIF
+        _process_gif(png_filename, gif_filename, max_frames)
+    else:
+        logger.info(f"{name} image is identical to existing, skipping processing")
+        # Remove temporary file since image hasn't changed
+        os.remove(temp_png)
+    
+    return png_filename, gif_filename, response, is_new_image
 
 def _process_gif(png_filename, gif_filename, max_frames):
     """Process PNG into GIF, either creating new or appending to existing."""
@@ -160,7 +175,7 @@ def fetch_all_weather_images(soup, image_file_path):
     
     # Fetch static seven-day outlook
     static_url = 'https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png'
-    png_file, gif_file, response = fetch_and_process_single_image(
+    png_file, gif_file, response, is_new_image = fetch_and_process_single_image(
         static_url, image_file_path, 'two_atl_7d0', max_frames=10
     )
     
@@ -168,7 +183,8 @@ def fetch_all_weather_images(soup, image_file_path):
         'url': static_url,
         'png': png_file,
         'gif': gif_file,
-        'response': response
+        'response': response,
+        'is_new_image': is_new_image
     }
     
     # Fetch cyclone images
@@ -179,7 +195,7 @@ def fetch_all_weather_images(soup, image_file_path):
         storm_name = cyclone['storm_name']
         image_url = cyclone['image_url']
         
-        png_file, gif_file, response = fetch_and_process_single_image(
+        png_file, gif_file, response, is_new_image = fetch_and_process_single_image(
             image_url, image_file_path, f"{storm_name}_5day_cone_with_line_and_wind", max_frames=10
         )
         
@@ -188,7 +204,8 @@ def fetch_all_weather_images(soup, image_file_path):
             'png': png_file,
             'gif': gif_file,
             'url': image_url,
-            'response': response
+            'response': response,
+            'is_new_image': is_new_image
         })
     
     logger.info(f"Processed {len(cyclone_images)} cyclone images")
@@ -215,7 +232,7 @@ def generate_rss_feed(static_image_data, rss_file_path):
     fg.rss_file(rss_file_path)
 
 def upload_to_slack_and_discord(static_image_data, cyclone_images, slack_token, discord_webhook_url):
-    """Upload images to Slack and Discord."""
+    """Upload images to Slack and Discord. Only call this with images that should be uploaded."""
     logger.info("Starting upload to Slack and Discord")
     
     # Parse Last-Modified header for static image
@@ -229,8 +246,8 @@ def upload_to_slack_and_discord(static_image_data, cyclone_images, slack_token, 
     client = WebClient(token=slack_token)
     file_uploads = []
     
-    # Add static images if not from cache
-    if not static_response.from_cache:
+    # Add static images
+    if static_image_data:
         file_uploads.extend([
             {"file": static_image_data['png'], "title": "Seven-Day Outlook"},
             {"file": static_image_data['gif'], "title": "Last 10 maps"},
@@ -239,12 +256,11 @@ def upload_to_slack_and_discord(static_image_data, cyclone_images, slack_token, 
     
     # Add cyclone images
     for cyclone in cyclone_images:
-        if not cyclone['response'].from_cache:
-            file_uploads.extend([
-                {"file": cyclone['png'], "title": cyclone['name']},
-                {"file": cyclone['gif'], "title": f"{cyclone['name']} Loop"},
-            ])
-            logger.info(f"Added {cyclone['name']} images to Slack upload queue")
+        file_uploads.extend([
+            {"file": cyclone['png'], "title": cyclone['name']},
+            {"file": cyclone['gif'], "title": f"{cyclone['name']} Loop"},
+        ])
+        logger.info(f"Added {cyclone['name']} images to Slack upload queue")
 
     # Upload to Slack
     if file_uploads:
@@ -267,8 +283,8 @@ def upload_to_slack_and_discord(static_image_data, cyclone_images, slack_token, 
     # Setup Discord
     webhook = SyncWebhook.from_url(discord_webhook_url)
     
-    # Upload static images to Discord if not from cache
-    if not static_response.from_cache:
+    # Upload static images to Discord
+    if static_image_data:
         logger.info("Uploading static images to Discord")
         with open(static_image_data['png'], 'rb') as img_file, open(static_image_data['gif'], 'rb') as gif_file:
             webhook.send(
@@ -279,14 +295,13 @@ def upload_to_slack_and_discord(static_image_data, cyclone_images, slack_token, 
 
     # Upload cyclone images to Discord
     for cyclone in cyclone_images:
-        if not cyclone['response'].from_cache:
-            logger.info(f"Uploading {cyclone['name']} to Discord")
-            with open(cyclone['png'], 'rb') as img_file, open(cyclone['gif'], 'rb') as gif_file:
-                webhook.send(
-                    content=f"**{cyclone['name']}**",
-                    files=[File(img_file, filename=f"{cyclone['name']}.png"), File(gif_file, filename=f"{cyclone['name']}.gif")]
-                )
-            logger.info(f"Successfully uploaded {cyclone['name']} to Discord")
+        logger.info(f"Uploading {cyclone['name']} to Discord")
+        with open(cyclone['png'], 'rb') as img_file, open(cyclone['gif'], 'rb') as gif_file:
+            webhook.send(
+                content=f"**{cyclone['name']}**",
+                files=[File(img_file, filename=f"{cyclone['name']}.png"), File(gif_file, filename=f"{cyclone['name']}.gif")]
+            )
+        logger.info(f"Successfully uploaded {cyclone['name']} to Discord")
     
     logger.info("Completed upload to Slack and Discord")
 
@@ -303,6 +318,82 @@ def delete_images(image_file_path):
             deleted_count += 1
     
     logger.info(f"Deleted {deleted_count} image files")
+
+def images_are_different(new_image_path, existing_image_path, threshold=0.01):
+    """
+    Compare two images using PIL ImageChops to determine if they're different.
+    
+    Args:
+        new_image_path: Path to the newly downloaded image
+        existing_image_path: Path to the existing image file
+        threshold: Percentage threshold for considering images different (0.01 = 1%)
+    
+    Returns:
+        bool: True if images are different, False if they're the same
+    """
+    if not os.path.exists(existing_image_path):
+        logger.info(f"No existing image found at {existing_image_path}, treating as different")
+        return True
+    
+    try:
+        # Open both images and ensure they're the same size and mode
+        with Image.open(new_image_path) as new_img, Image.open(existing_image_path) as existing_img:
+            # Convert to RGB if necessary for comparison
+            if new_img.mode != 'RGB':
+                new_img = new_img.convert('RGB')
+            if existing_img.mode != 'RGB':
+                existing_img = existing_img.convert('RGB')
+            
+            # Ensure images are the same size
+            if new_img.size != existing_img.size:
+                logger.info(f"Images have different sizes: {new_img.size} vs {existing_img.size}")
+                return True
+            
+            # Calculate the difference using ImageChops
+            diff = ImageChops.difference(new_img, existing_img)
+            
+            # Calculate the percentage of different pixels
+            # Convert to grayscale for easier analysis
+            diff_gray = diff.convert('L')
+            
+            # Count non-zero pixels (different pixels)
+            pixels = list(diff_gray.getdata())
+            different_pixels = sum(1 for pixel in pixels if pixel > 0)
+            total_pixels = len(pixels)
+            
+            difference_percentage = different_pixels / total_pixels
+            
+            logger.info(f"Image comparison: {difference_percentage:.4f} ({difference_percentage*100:.2f}%) pixels different")
+            
+            return difference_percentage > threshold
+            
+    except Exception as e:
+        logger.error(f"Error comparing images: {e}")
+        # If we can't compare, assume they're different to be safe
+        return True
+
+def get_images_to_upload(static_images, cyclone_images):
+    """
+    Filter images that should be uploaded based on cache status and whether they're new.
+    
+    Args:
+        static_images: Dictionary containing static image data
+        cyclone_images: List of cyclone image dictionaries
+    
+    Returns:
+        tuple: (static_image_to_upload, cyclone_images_to_upload)
+    """
+    # Filter static image - upload if not from cache and is new
+    static_data = static_images['static']
+    upload_static = static_data if (not static_data['response'].from_cache and static_data.get('is_new_image', True)) else None
+    
+    # Filter cyclone images - upload if not from cache and is new
+    upload_cyclones = [
+        cyclone for cyclone in cyclone_images 
+        if not cyclone['response'].from_cache and cyclone.get('is_new_image', True)
+    ]
+    
+    return upload_static, upload_cyclones
 
 if __name__ == "__main__":
     import argparse
@@ -336,13 +427,19 @@ if __name__ == "__main__":
         logger.info("Generating RSS feed")
         generate_rss_feed(static_images['static'], args.rss_file_path)
         
-        # Upload to platforms
-        upload_to_slack_and_discord(
-            static_images['static'], 
-            cyclone_images, 
-            args.slack_token, 
-            args.discord_webhook_url
-        )
+        # Filter images that should be uploaded
+        upload_static, upload_cyclones = get_images_to_upload(static_images, cyclone_images)
+        
+        # Upload to platforms only if there are images to upload
+        if upload_static or upload_cyclones:
+            upload_to_slack_and_discord(
+                upload_static, 
+                upload_cyclones, 
+                args.slack_token, 
+                args.discord_webhook_url
+            )
+        else:
+            logger.info("No new images to upload")
         
         logger.info(f"Processing complete - handled {len(cyclone_images)} cyclone images")
     else:
