@@ -33,7 +33,7 @@ def setup_logging(log_file_path=None):
 # Set up the cache to respect HTTP cache headers
 requests_cache.install_cache('weather_cache', cache_control=True)
 
-storm_pattern = re.compile(r'.*(Post-Tropical\sCyclone|Tropical Storm|Hurricane).*Graphics.*', re.IGNORECASE)
+storm_pattern = re.compile(r'.*(Tropical Storm|Hurricane).*Graphics.*', re.IGNORECASE)
 
 def fetch_xml_feed():
     """Fetch and parse the XML feed from NOAA."""
@@ -74,7 +74,7 @@ def find_cyclones_in_feed(soup, map_name):
         # Find the img tag for the specific map
         img_tag = cdata_soup.find('img', src=lambda src: map_name in src if src else False)
         if img_tag:
-            pattern = re.compile(r'(Post-Tropical\sCyclone|Tropical\sStorm|Hurricane) (.*?) Graphics', re.IGNORECASE)
+            pattern = re.compile(r'(Tropical\sStorm|Hurricane) (.*?) Graphics', re.IGNORECASE)
             match = pattern.search(title.text)
             if match:
                 storm_name = match.group(2).strip()
@@ -113,7 +113,7 @@ def fetch_and_process_single_image(url, image_file_path, name, max_frames=10):
         logger.info(f"{name} image from cache")
         return png_filename, gif_filename, response
     
-    print(f"{name} image not from cache")
+    logger.info(f"{name} image not from cache")
     
     # Save PNG file
     with open(png_filename, 'wb') as image_file:
