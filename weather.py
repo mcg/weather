@@ -33,6 +33,8 @@ def setup_logging(log_file_path=None):
 # Set up the cache to respect HTTP cache headers
 requests_cache.install_cache('weather_cache', cache_control=True)
 
+storm_pattern = re.compile(r'.*(Post-Tropical\sCyclone|Tropical Storm|Hurricane).*Graphics.*', re.IGNORECASE)
+
 def fetch_xml_feed():
     """Fetch and parse the XML feed from NOAA."""
     logger.info("Fetching XML feed from NOAA")
@@ -46,8 +48,7 @@ def fetch_xml_feed():
     no_storms = soup.find(string=re.compile(r'Tropical cyclone formation is not expected during the next 7 days', re.IGNORECASE)) is not None
     
     # Check for active storms
-    pattern = re.compile(r'.*(Tropical Storm|Hurricane).*Graphics.*', re.IGNORECASE)
-    titles = soup.find_all('title', string=pattern)
+    titles = soup.find_all('title', string=storm_pattern)
     if len(titles) > 0:
         no_storms = False
         logger.info(f"Found {len(titles)} active storms")
@@ -60,8 +61,7 @@ def find_cyclones_in_feed(soup, map_name):
     """Find all cyclones in the XML feed for a specific map type."""
     logger.info(f"Searching for cyclones with map type: {map_name}")
     
-    pattern = re.compile(r'.*(Tropical Storm|Hurricane).*Graphics.*', re.IGNORECASE)
-    titles = soup.find_all('title', string=pattern)
+    titles = soup.find_all('title', string=storm_pattern)
 
     cyclones = []
     for title in titles:
