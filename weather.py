@@ -319,7 +319,7 @@ def delete_images(image_file_path):
     
     logger.info(f"Deleted {deleted_count} image files")
 
-def images_are_different(new_image_path, existing_image_path, threshold=0.01):
+def images_are_different(new_image_path, existing_image_path, threshold=0.001):
     """
     Compare two images using PIL ImageChops to determine if they're different.
     
