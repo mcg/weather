@@ -89,7 +89,7 @@ def find_cyclones_in_feed(soup, map_name):
     logger.info(f"Found {len(cyclones)} cyclones")
     return cyclones
 
-def fetch_and_process_single_image(url, image_file_path, name, max_frames=10):
+def fetch_and_process_single_image(url, image_file_path, name, max_frames=10, threshold=0.001):
     """
     Fetch a single image and process it into PNG and GIF formats.
     
@@ -98,6 +98,7 @@ def fetch_and_process_single_image(url, image_file_path, name, max_frames=10):
         image_file_path: Directory to save images
         name: Name for the image files
         max_frames: Maximum number of frames to keep in GIF
+        threshold: Threshold for image difference detection
     
     Returns:
         tuple: (png_filename, gif_filename, response, is_new_image)
@@ -121,7 +122,7 @@ def fetch_and_process_single_image(url, image_file_path, name, max_frames=10):
         image_file.write(response.content)
     
     # Compare with existing image
-    is_new_image = images_are_different(temp_png, png_filename)
+    is_new_image = images_are_different(temp_png, png_filename, threshold)
     
     if is_new_image:
         logger.info(f"{name} image is different, processing")
@@ -163,9 +164,14 @@ def _process_gif(png_filename, gif_filename, max_frames):
         frames[0].save(gif_filename, save_all=True, append_images=frames[1:], loop=0, duration=500)
         print(f"Updated GIF: {gif_filename} (frames: {len(frames)})")
 
-def fetch_all_weather_images(soup, image_file_path):
+def fetch_all_weather_images(soup, image_file_path, threshold=0.001):
     """
     Fetch all weather images including static outlook and cyclone images.
+    
+    Args:
+        soup: BeautifulSoup object of the XML feed
+        image_file_path: Directory to save images
+        threshold: Threshold for image difference detection
     
     Returns:
         tuple: (static_images_dict, cyclone_images_list)
@@ -176,7 +182,7 @@ def fetch_all_weather_images(soup, image_file_path):
     # Fetch static seven-day outlook
     static_url = 'https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png'
     png_file, gif_file, response, is_new_image = fetch_and_process_single_image(
-        static_url, image_file_path, 'two_atl_7d0', max_frames=10
+        static_url, image_file_path, 'two_atl_7d0', max_frames=10, threshold=threshold
     )
     
     all_images['static'] = {
@@ -196,7 +202,7 @@ def fetch_all_weather_images(soup, image_file_path):
         image_url = cyclone['image_url']
         
         png_file, gif_file, response, is_new_image = fetch_and_process_single_image(
-            image_url, image_file_path, f"{storm_name}_5day_cone_with_line_and_wind", max_frames=10
+            image_url, image_file_path, f"{storm_name}_5day_cone_with_line_and_wind", max_frames=10, threshold=threshold
         )
         
         cyclone_images.append({
@@ -405,6 +411,7 @@ if __name__ == "__main__":
     parser.add_argument('slack_token', type=str, help='Slack API token for uploading files.')
     parser.add_argument('discord_webhook_url', type=str, help='Discord webhook URL for posting images.')
     parser.add_argument('--log-file', type=str, help='Path to log file (optional).')
+    parser.add_argument('--threshold', type=float, default=0.001, help='Threshold for image difference detection (default: 0.001).')
 
     args = parser.parse_args()
     
@@ -421,7 +428,7 @@ if __name__ == "__main__":
         logger.info("Processing weather images - storms detected")
         
         # Fetch all images in one place
-        static_images, cyclone_images = fetch_all_weather_images(soup, args.image_file_path)
+        static_images, cyclone_images = fetch_all_weather_images(soup, args.image_file_path, args.threshold)
         
         # Generate RSS feed
         logger.info("Generating RSS feed")
