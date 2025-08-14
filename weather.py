@@ -4,6 +4,7 @@ import re
 import time
 import requests
 import requests_cache
+from datetime import timedelta
 from bs4 import BeautifulSoup
 import xml.etree.ElementTree as ET
 from PIL import Image, ImageSequence, ImageChops
@@ -30,10 +31,16 @@ def setup_logging(log_file_path=None):
         handlers=handlers
     )
 
+# Define expiration times for model image, since it don't expire correctly
+urls_expire_after = {
+    'https://web.uwm.edu/hurricane-models/models/*': timedelta(hours=1)
+}
+
 # Set up the cache to respect HTTP cache headers
-requests_cache.install_cache('weather_cache', cache_control=True)
+requests_cache.install_cache('weather_cache', cache_control=True, urls_expire_after=urls_expire_after)
 
 storm_pattern = re.compile(r'.*(Tropical Storm|Hurricane).*Graphics.*', re.IGNORECASE)
+speg_pattern = re.compile(r'.*Summary for (Tropical Storm|Hurricane).*', re.IGNORECASE)
 
 def fetch_xml_feed():
     """Fetch and parse the XML feed from NOAA."""
@@ -65,6 +72,7 @@ def find_cyclones_in_feed(soup, map_name):
     logger.info(f"Searching for cyclones with map type: {map_name}")
     
     titles = soup.find_all('title', string=storm_pattern)
+    speg_titles = soup.find_all('title', string=speg_pattern)
 
     cyclones = []
     for title in titles:
@@ -80,11 +88,24 @@ def find_cyclones_in_feed(soup, map_name):
                 storm_name = match.group(2).strip()
                 storm_type = match.group(1).strip()
                 if storm_type in ['Hurricane', 'Tropical Storm']:
+                    # Find the associated nhc:atcf tag within nhc:Cyclone for this storm
+                    speg_model = None
+                    for speg_title in speg_titles:
+                        item = speg_title.find_parent('item')
+                        if item:
+                            # Look for nhc:Cyclone tag first, then find nhc:atcf within it
+                            cyclone_tag = item.find('nhc:Cyclone')
+                            if cyclone_tag:
+                                atcf_tag = cyclone_tag.find('nhc:atcf')
+                                if atcf_tag:
+                                    speg_model = atcf_tag.text.lower()
+                    
                     cyclones.append({
                         'storm_name': storm_name, 
-                        'image_url': img_tag['src']
+                        'image_url': img_tag['src'],
+                        'speg_model': speg_model
                     })
-                    logger.info(f"Found cyclone: {storm_name} ({storm_type}) with image URL: {img_tag['src']}")
+                    logger.info(f"Found cyclone: {storm_name} ({storm_type}) with image URL: {img_tag['src']}, SPEG Model: {speg_model}")
     
     logger.info(f"Found {len(cyclones)} cyclones")
     return cyclones
@@ -189,6 +210,7 @@ def fetch_all_weather_images(soup, image_file_path, threshold=0.001):
         'url': static_url,
         'png': png_file,
         'gif': gif_file,
+        'type': 'static',
         'response': response,
         'is_new_image': is_new_image
     }
@@ -200,19 +222,50 @@ def fetch_all_weather_images(soup, image_file_path, threshold=0.001):
     for cyclone in cyclones:
         storm_name = cyclone['storm_name']
         image_url = cyclone['image_url']
+        speg_model = cyclone.get('speg_model')
         
+        # Fetch NHC cone image
         png_file, gif_file, response, is_new_image = fetch_and_process_single_image(
             image_url, image_file_path, f"{storm_name}_5day_cone_with_line_and_wind", max_frames=10, threshold=threshold
         )
         
-        cyclone_images.append({
+        cyclone_image = {
             'name': storm_name,
+            'type': 'cone',
             'png': png_file,
             'gif': gif_file,
             'url': image_url,
             'response': response,
             'is_new_image': is_new_image
-        })
+        }
+        cyclone_images.append(cyclone_image)
+
+        
+        # If we have a SPEG model ID, also fetch hurricane models image
+        if speg_model:
+            hurricane_models_url = f"https://web.uwm.edu/hurricane-models/models/{speg_model}.png"
+            logger.info(f"Fetching hurricane models image for {storm_name}: {hurricane_models_url}")
+            
+            try:
+                hm_png_file, hm_gif_file, hm_response, hm_is_new_image = fetch_and_process_single_image(
+                    hurricane_models_url, image_file_path, f"{storm_name}_hurricane_models", max_frames=10, threshold=threshold
+                )
+                
+                cyclone_image = {
+                    'name': f"{storm_name} Hurricane Models",
+                    'type': 'speg',
+                    'png': hm_png_file,
+                    'gif': hm_gif_file,
+                    'url': hurricane_models_url,
+                    'response': hm_response,
+                    'is_new_image': hm_is_new_image
+                }
+                cyclone_images.append(cyclone_image)
+                logger.info(f"Successfully fetched hurricane models image for {storm_name}")
+            except Exception as e:
+                logger.warning(f"Failed to fetch hurricane models image for {storm_name}: {e}")
+                cyclone_image = None
+        
     
     logger.info(f"Processed {len(cyclone_images)} cyclone images")
     return all_images, cyclone_images
@@ -242,11 +295,11 @@ def upload_to_slack_and_discord(static_image_data, cyclone_images, slack_token, 
     logger.info("Starting upload to Slack and Discord")
     
     # Parse Last-Modified header for static image
-    static_response = static_image_data['response']
-    last_modified_utc = parsedate_to_datetime(static_response.headers['Last-Modified'])
-    eastern = pytz.timezone('US/Eastern')
-    last_modified_et = last_modified_utc.astimezone(eastern)
-    last_modified = last_modified_et.strftime('%Y-%m-%d %I:%M %p %Z')
+    # static_response = static_image_data['response']
+    # last_modified_utc = parsedate_to_datetime(static_response.headers['Last-Modified'])
+    # eastern = pytz.timezone('US/Eastern')
+    # last_modified_et = last_modified_utc.astimezone(eastern)
+    # last_modified = last_modified_et.strftime('%Y-%m-%d %I:%M %p %Z')
 
     # Setup Slack
     client = WebClient(token=slack_token)
@@ -262,11 +315,20 @@ def upload_to_slack_and_discord(static_image_data, cyclone_images, slack_token, 
     
     # Add cyclone images
     for cyclone in cyclone_images:
-        file_uploads.extend([
-            {"file": cyclone['png'], "title": cyclone['name']},
-            {"file": cyclone['gif'], "title": f"{cyclone['name']} Loop"},
-        ])
-        logger.info(f"Added {cyclone['name']} images to Slack upload queue")
+        if cyclone['type'] == 'cone':
+            file_uploads.extend([
+                {"file": cyclone['png'], "title": cyclone['name']},
+                {"file": cyclone['gif'], "title": f"{cyclone['name']} Loop"},
+            ])
+            logger.info(f"Added {cyclone['name']} images to Slack upload queue")
+        
+        # Add hurricane models images if available
+        if cyclone['type'] == 'speg':
+            file_uploads.extend([
+                {"file": cyclone['png'], "title": f"{cyclone['name']} Models"},
+                {"file": cyclone['gif'], "title": f"{cyclone['name']} Models Loop"},
+            ])
+            logger.info(f"Added {cyclone['name']} hurricane models images to Slack upload queue")
 
     # Upload to Slack
     if file_uploads:
@@ -301,12 +363,25 @@ def upload_to_slack_and_discord(static_image_data, cyclone_images, slack_token, 
 
     # Upload cyclone images to Discord
     for cyclone in cyclone_images:
-        logger.info(f"Uploading {cyclone['name']} to Discord")
-        with open(cyclone['png'], 'rb') as img_file, open(cyclone['gif'], 'rb') as gif_file:
-            webhook.send(
-                content=f"**{cyclone['name']}**",
-                files=[File(img_file, filename=f"{cyclone['name']}.png"), File(gif_file, filename=f"{cyclone['name']}.gif")]
-            )
+        if cyclone['type'] == 'cone':
+            logger.info(f"Uploading {cyclone['name']} to Discord")
+        
+            # Upload NHC cone images
+            with open(cyclone['png'], 'rb') as img_file, open(cyclone['gif'], 'rb') as gif_file:
+                webhook.send(
+                    content=f"**{cyclone['name']} - NHC Cone**",
+                    files=[File(img_file, filename=f"{cyclone['name']}.png"), File(gif_file, filename=f"{cyclone['name']}.gif")]
+                )
+        
+        # Upload hurricane models images if available
+        if cyclone['type'] == 'speg':
+            logger.info(f"Uploading {cyclone['name']} hurricane models to Discord")
+            with open(cyclone['png'], 'rb') as img_file, open(cyclone['gif'], 'rb') as gif_file:
+                webhook.send(
+                    content=f"**{cyclone['name']} - Hurricane Models**",
+                    files=[File(img_file, filename=f"{cyclone['name']}_models.png"), File(gif_file, filename=f"{cyclone['name']}_models.gif")]
+                )
+        
         logger.info(f"Successfully uploaded {cyclone['name']} to Discord")
     
     logger.info("Completed upload to Slack and Discord")
@@ -394,10 +469,20 @@ def get_images_to_upload(static_images, cyclone_images):
     upload_static = static_data if (not static_data['response'].from_cache and static_data.get('is_new_image', True)) else None
     
     # Filter cyclone images - upload if not from cache and is new
-    upload_cyclones = [
-        cyclone for cyclone in cyclone_images 
-        if not cyclone['response'].from_cache and cyclone.get('is_new_image', True)
-    ]
+    upload_cyclones = []
+    for cyclone in cyclone_images:
+        # Check if main cyclone image should be uploaded
+        should_upload_main = not cyclone['response'].from_cache and cyclone.get('is_new_image', True)
+        
+        # Check if hurricane models image should be uploaded
+        should_upload_hm = False
+        if cyclone.get('hurricane_models'):
+            hm_data = cyclone['hurricane_models']
+            should_upload_hm = not hm_data['response'].from_cache and hm_data.get('is_new_image', True)
+        
+        # Upload if either image is new
+        if should_upload_main or should_upload_hm:
+            upload_cyclones.append(cyclone)
     
     return upload_static, upload_cyclones
 
