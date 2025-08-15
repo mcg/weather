@@ -31,7 +31,7 @@ def setup_logging(log_file_path=None):
         handlers=handlers
     )
 
-# Define expiration times for model image, since it don't expire correctly
+# Define expiration times for model image, since it doesn't expire correctly
 urls_expire_after = {
     'https://web.uwm.edu/hurricane-models/models/*': timedelta(hours=1)
 }
