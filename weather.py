@@ -476,7 +476,7 @@ def get_images_to_upload(static_images, cyclone_images):
         
         # Check if hurricane models image should be uploaded
         should_upload_hm = False
-        if cyclone.get('hurricane_models'):
+        if cyclone.get('type') == 'hurricane' and cyclone.get('hurricane_models'):
         if cyclone.get('speg_model'):
             hm_data = cyclone['speg_model']
             should_upload_hm = not hm_data['response'].from_cache and hm_data.get('is_new_image', True)
