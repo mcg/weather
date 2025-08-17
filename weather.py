@@ -274,7 +274,7 @@ def generate_rss_feed(static_image: WeatherImage, rss_file_path: str):
     fe.title('Weather Image')
     fe.link(href=static_image.url)
     fe.description(f'Atlantic Weather Image. <img src="{static_image.url}#{timestamp}" alt="Weather Image"/>')
-    fe.enclosure(static_image.url, "0", 'image/png')  # Size unknown
+    fe.enclosure(static_image.url, str(os.path.getsize(static_image.png_path)), 'image/png')
     fe.id(f"{static_image.url}#{timestamp}")
 
     fg.rss_file(rss_file_path)
