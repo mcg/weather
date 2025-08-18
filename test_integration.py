@@ -1,8 +1,7 @@
 import unittest
 import tempfile
 import os
-import sys
-from unittest.mock import patch, Mock, MagicMock
+from unittest.mock import patch, Mock
 from io import StringIO
 
 # Import the main function

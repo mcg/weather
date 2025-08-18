@@ -366,8 +366,8 @@ def main():
     parser.add_argument('image_file_path', help='Path to save image files.')
     parser.add_argument('slack_webhook_url', help='Slack webhook URL (unused).')
     parser.add_argument('slack_token', help='Slack API token.')
-    parser.add_argument('discord_webhook_url', help='Discord webhook URL.')
     parser.add_argument('upload_channel', help='Slack channel ID for uploading files.')
+    parser.add_argument('discord_webhook_url', help='Discord webhook URL.')
     parser.add_argument('--log-file', help='Path to log file (optional).')
     parser.add_argument('--threshold', type=float, default=0.001, 
                        help='Threshold for image difference detection (default: 0.001).')

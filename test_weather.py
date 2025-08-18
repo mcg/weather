@@ -2,9 +2,8 @@ import unittest
 import tempfile
 import os
 import shutil
-from unittest.mock import Mock, patch, MagicMock, mock_open
+from unittest.mock import Mock, patch, mock_open
 from PIL import Image
-import requests
 from bs4 import BeautifulSoup
 
 # Import the functions we want to test
