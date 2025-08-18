@@ -19,15 +19,18 @@ logger = logging.getLogger(__name__)
 
 def setup_logging(log_file_path=None):
     """Set up logging configuration."""
-    handlers = [logging.StreamHandler()]
     if log_file_path:
-        handlers.append(logging.FileHandler(log_file_path))
-    
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=handlers
-    )
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[logging.StreamHandler(), logging.FileHandler(log_file_path)]
+        )
+    else:
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[logging.StreamHandler()]
+        )
 
 # Set up caching
 urls_expire_after = {'https://web.uwm.edu/hurricane-models/models/*': timedelta(hours=1)}
@@ -121,7 +124,7 @@ def find_cyclones_in_feed(soup) -> List[Dict[str, str]]:
             cyclones.append({
                 'storm_name': storm_info['name'],
                 'storm_type': storm_info['type'],
-                'image_url': img_tag['src'],
+                'image_url': img_tag['src'], # pyright: ignore[reportArgumentType]
                 'speg_model': speg_model
             })
             logger.info(f"Found cyclone: {storm_info['name']} ({storm_info['type']}) with SPEG model: {speg_model}")
@@ -150,7 +153,7 @@ def images_are_different(new_image_path: str, existing_image_path: str, threshol
             # Calculate pixel differences
             diff = ImageChops.difference(new_img, existing_img)
             diff_gray = diff.convert('L')
-            pixels = list(diff_gray.getdata())
+            pixels = list(diff_gray.getdata()) # pyright: ignore[reportArgumentType]
             
             different_pixels = sum(1 for pixel in pixels if pixel > 0)
             difference_percentage = different_pixels / len(pixels)
@@ -193,7 +196,7 @@ def process_single_image(url: str, base_name: str, image_dir: str, threshold: fl
     gif_path = f"{image_dir}/{base_name}.gif"
     
     # Handle caching
-    if response.from_cache:
+    if response.from_cache: # pyright: ignore[reportAttributeAccessIssue]
         logger.info(f"{base_name} from cache")
         return WeatherImage(base_name, png_path, gif_path, url, False, "cached")
     
@@ -264,6 +267,9 @@ def fetch_all_weather_images(soup, image_dir: str, threshold: float = 0.001) -> 
 def generate_rss_feed(static_image: WeatherImage, rss_file_path: str):
     """Generate RSS feed for the static weather image."""
     timestamp = int(time.time())
+    img_size = 0
+    if os.path.exists(static_image.png_path):
+        img_size = str(os.path.getsize(static_image.png_path))
     
     fg = FeedGenerator()
     fg.title('Seven-Day Atlantic Graphical Tropical Weather Outlook')
@@ -274,12 +280,12 @@ def generate_rss_feed(static_image: WeatherImage, rss_file_path: str):
     fe.title('Weather Image')
     fe.link(href=static_image.url)
     fe.description(f'Atlantic Weather Image. <img src="{static_image.url}#{timestamp}" alt="Weather Image"/>')
-    fe.enclosure(static_image.url, str(os.path.getsize(static_image.png_path)), 'image/png')
+    fe.enclosure(static_image.url, img_size, 'image/png')
     fe.id(f"{static_image.url}#{timestamp}")
 
     fg.rss_file(rss_file_path)
 
-def upload_files_to_slack(images: List[WeatherImage], slack_token: str):
+def upload_files_to_slack(images: List[WeatherImage], slack_token: str, upload_channel: str):
     """Upload images to Slack."""
     client = WebClient(token=slack_token)
     file_uploads = []
@@ -304,8 +310,6 @@ def upload_files_to_slack(images: List[WeatherImage], slack_token: str):
     if file_uploads:
         try:
             logger.info(f"Uploading {len(file_uploads)} files to Slack")
-            # upload_channel = "C07KTS31M1T"  # test channel
-            upload_channel= "C2BRCNET1" # active channel
             client.files_upload_v2(
                 file_uploads=file_uploads,
                 channel=upload_channel,
@@ -363,6 +367,7 @@ def main():
     parser.add_argument('slack_webhook_url', help='Slack webhook URL (unused).')
     parser.add_argument('slack_token', help='Slack API token.')
     parser.add_argument('discord_webhook_url', help='Discord webhook URL.')
+    parser.add_argument('upload_channel', help='Slack channel ID for uploading files.')
     parser.add_argument('--log-file', help='Path to log file (optional).')
     parser.add_argument('--threshold', type=float, default=0.001, 
                        help='Threshold for image difference detection (default: 0.001).')
@@ -390,7 +395,7 @@ def main():
         
         if new_images:
             logger.info(f"Uploading {len(new_images)} new images")
-            upload_files_to_slack(new_images, args.slack_token)
+            upload_files_to_slack(new_images, args.slack_token, args.upload_channel)
             upload_files_to_discord(new_images, args.discord_webhook_url)
         else:
             logger.info("No new images to upload")
