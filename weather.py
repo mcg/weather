@@ -353,10 +353,31 @@ def delete_images(image_dir: str):
     
     for filename in os.listdir(image_dir):
         if filename.endswith(('.png', '.gif')):
-            os.remove(os.path.join(image_dir, filename))
-            count += 1
+            try:
+                os.remove(os.path.join(image_dir, filename))
+                count += 1
+            except (OSError, PermissionError) as e:
+                logger.error(f"Failed to delete {filename}: {e}")
     
     logger.info(f"Deleted {count} image files")
+
+def delete_storm_images(image_dir: str):
+    """Delete storm-related PNG and GIF files, but keep static outlook images."""
+    logger.info(f"Deleting storm images from {image_dir}")
+    count = 0
+    
+    for filename in os.listdir(image_dir):
+        if filename.endswith(('.png', '.gif')):
+            # Keep static outlook images (two_atl_7d0)
+            if 'two_atl_7d0' not in filename:
+                try:
+                    os.remove(os.path.join(image_dir, filename))
+                    count += 1
+                    logger.debug(f"Deleted storm image: {filename}")
+                except (OSError, PermissionError) as e:
+                    logger.error(f"Failed to delete {filename}: {e}")
+    
+    logger.info(f"Deleted {count} storm image files")
 
 def main():
     import argparse
@@ -402,8 +423,28 @@ def main():
         
         logger.info(f"Processing complete - handled {len(all_images)} total images")
     else:
-        logger.info("No tropical cyclones expected - cleaning up old files")
-        delete_images(args.image_file_path)
+        logger.info("No tropical cyclones expected - checking static image only")
+        
+        # Clean up old storm images but keep static images
+        delete_storm_images(args.image_file_path)
+        
+        # Process only the static image when no storms are active
+        static_url = 'https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png'
+        static_image = process_single_image(static_url, 'two_atl_7d0', args.image_file_path, args.threshold)
+        static_image.image_type = 'static'
+        
+        # Generate RSS feed for the static image
+        generate_rss_feed(static_image, args.rss_file_path)
+        
+        # Only upload if the static image has been updated
+        if static_image.is_new:
+            logger.info("Static image has been updated - uploading")
+            upload_files_to_slack([static_image], args.slack_token, args.upload_channel)
+            upload_files_to_discord([static_image], args.discord_webhook_url)
+        else:
+            logger.info("Static image unchanged - no upload needed")
+        
+        logger.info("Processing complete - handled static image only")
 
 if __name__ == "__main__":
     main()

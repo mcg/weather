@@ -11,7 +11,7 @@ from weather import (
     fetch_xml_feed, extract_storm_info, find_speg_model, find_cyclones_in_feed,
     images_are_different, update_gif, process_single_image, fetch_all_weather_images,
     generate_rss_feed, upload_files_to_slack, upload_files_to_discord, delete_images,
-    WeatherImage, setup_logging
+    delete_storm_images, WeatherImage, setup_logging
 )
 
 
@@ -369,6 +369,54 @@ class TestWeatherFunctions(unittest.TestCase):
         self.assertFalse(os.path.exists(png_file))
         self.assertFalse(os.path.exists(gif_file))
         self.assertTrue(os.path.exists(txt_file))
+    
+    def test_delete_storm_images(self):
+        """Test deleting storm images while preserving static images."""
+        # Create test files
+        static_png = os.path.join(self.temp_dir, 'two_atl_7d0.png')
+        static_gif = os.path.join(self.temp_dir, 'two_atl_7d0.gif')
+        storm_png = os.path.join(self.temp_dir, 'Maria_5day_cone_with_line_and_wind.png')
+        storm_gif = os.path.join(self.temp_dir, 'Maria_5day_cone_with_line_and_wind.gif')
+        models_png = os.path.join(self.temp_dir, 'Maria_hurricane_models.png')
+        models_gif = os.path.join(self.temp_dir, 'Maria_hurricane_models.gif')
+        txt_file = os.path.join(self.temp_dir, 'test.txt')
+        
+        # Create all test files
+        for file_path in [static_png, static_gif, storm_png, storm_gif, models_png, models_gif, txt_file]:
+            with open(file_path, 'w') as f:
+                f.write('fake content')
+        
+        delete_storm_images(self.temp_dir)
+        
+        # Static images should remain
+        self.assertTrue(os.path.exists(static_png))
+        self.assertTrue(os.path.exists(static_gif))
+        
+        # Storm images should be deleted
+        self.assertFalse(os.path.exists(storm_png))
+        self.assertFalse(os.path.exists(storm_gif))
+        self.assertFalse(os.path.exists(models_png))
+        self.assertFalse(os.path.exists(models_gif))
+        
+        # Non-image files should remain
+        self.assertTrue(os.path.exists(txt_file))
+    
+    def test_delete_storm_images_no_static_files(self):
+        """Test deleting storm images when no static files exist."""
+        # Create only storm files
+        storm_png = os.path.join(self.temp_dir, 'Alex_5day_cone_with_line_and_wind.png')
+        storm_gif = os.path.join(self.temp_dir, 'Alex_5day_cone_with_line_and_wind.gif')
+        
+        with open(storm_png, 'w') as f:
+            f.write('fake png')
+        with open(storm_gif, 'w') as f:
+            f.write('fake gif')
+        
+        delete_storm_images(self.temp_dir)
+        
+        # Storm images should be deleted
+        self.assertFalse(os.path.exists(storm_png))
+        self.assertFalse(os.path.exists(storm_gif))
     
     def test_weather_image_dataclass(self):
         """Test WeatherImage dataclass."""

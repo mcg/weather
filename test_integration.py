@@ -23,11 +23,20 @@ class TestWeatherIntegration(unittest.TestCase):
         import shutil
         shutil.rmtree(self.temp_dir)
     
-    @patch('weather.delete_images')
+    @patch('weather.upload_files_to_discord')
+    @patch('weather.upload_files_to_slack')
+    @patch('weather.generate_rss_feed')
+    @patch('weather.process_single_image')
+    @patch('weather.delete_storm_images')
     @patch('weather.fetch_xml_feed')
     @patch('sys.argv')
-    def test_main_no_storms(self, mock_argv, mock_fetch_xml, mock_delete_images):
-        """Test main function when no storms are expected."""
+    def test_main_no_storms_with_updated_static_image(self, mock_argv, mock_fetch_xml, 
+                                                     mock_delete_storm_images, mock_process_image,
+                                                     mock_generate_rss, mock_upload_slack, 
+                                                     mock_upload_discord):
+        """Test main function when no storms are expected and static image is updated."""
+        from weather import WeatherImage
+        
         # Mock command line arguments
         mock_argv.__getitem__ = lambda s, i: [
             'weather.py',
@@ -35,22 +44,70 @@ class TestWeatherIntegration(unittest.TestCase):
             self.image_dir,
             'slack_webhook_url',
             'slack_token',
-            'discord_webhook_url',
-            'upload_channel'
+            'upload_channel',
+            'discord_webhook_url'
         ][i]
         mock_argv.__len__ = lambda s: 7
         
         # Mock no storms scenario
         mock_fetch_xml.return_value = (True, Mock())  # no_storms=True
         
-        # Capture stdout to verify logging
-        captured_output = StringIO()
+        # Mock updated static image
+        static_image = WeatherImage('two_atl_7d0', 'path.png', 'path.gif', 'url', True, 'static')
+        mock_process_image.return_value = static_image
         
-        with patch('sys.stdout', captured_output):
-            main()
+        main()
         
         mock_fetch_xml.assert_called_once()
-        mock_delete_images.assert_called_once_with(self.image_dir)
+        mock_delete_storm_images.assert_called_once_with(self.image_dir)
+        mock_process_image.assert_called_once()
+        mock_generate_rss.assert_called_once_with(static_image, self.rss_file)
+        mock_upload_slack.assert_called_once_with([static_image], 'slack_token', 'upload_channel')
+        mock_upload_discord.assert_called_once_with([static_image], 'discord_webhook_url')
+    
+    @patch('weather.upload_files_to_discord')
+    @patch('weather.upload_files_to_slack')
+    @patch('weather.generate_rss_feed')
+    @patch('weather.process_single_image')
+    @patch('weather.delete_storm_images')
+    @patch('weather.fetch_xml_feed')
+    @patch('sys.argv')
+    def test_main_no_storms_with_unchanged_static_image(self, mock_argv, mock_fetch_xml, 
+                                                       mock_delete_storm_images, mock_process_image,
+                                                       mock_generate_rss, mock_upload_slack, 
+                                                       mock_upload_discord):
+        """Test main function when no storms are expected and static image is unchanged."""
+        from weather import WeatherImage
+        
+        # Mock command line arguments
+        mock_argv.__getitem__ = lambda s, i: [
+            'weather.py',
+            self.rss_file,
+            self.image_dir,
+            'slack_webhook_url',
+            'slack_token',
+            'upload_channel',
+            'discord_webhook_url'
+        ][i]
+        mock_argv.__len__ = lambda s: 7
+        
+        # Mock no storms scenario
+        mock_fetch_xml.return_value = (True, Mock())  # no_storms=True
+        
+        # Mock unchanged static image
+        static_image = WeatherImage('two_atl_7d0', 'path.png', 'path.gif', 'url', False, 'static')
+        mock_process_image.return_value = static_image
+        
+        main()
+        
+        mock_fetch_xml.assert_called_once()
+        mock_delete_storm_images.assert_called_once_with(self.image_dir)
+        mock_process_image.assert_called_once()
+        mock_generate_rss.assert_called_once_with(static_image, self.rss_file)
+        
+        # Should not upload since image is unchanged
+        mock_upload_slack.assert_not_called()
+        mock_upload_discord.assert_not_called()
     
     @patch('weather.upload_files_to_discord')
     @patch('weather.upload_files_to_slack')
@@ -71,8 +128,8 @@ class TestWeatherIntegration(unittest.TestCase):
             self.image_dir,
             'slack_webhook_url',
             'slack_token',
-            'discord_webhook_url',
-            'upload_channel'
+            'upload_channel',
+            'discord_webhook_url'
         ][i]
         mock_argv.__len__ = lambda s: 7
         
@@ -114,8 +171,8 @@ class TestWeatherIntegration(unittest.TestCase):
             self.image_dir,
             'slack_webhook_url',
             'slack_token',
-            'discord_webhook_url',
-            'upload_channel'
+            'upload_channel',
+            'discord_webhook_url'
         ][i]
         mock_argv.__len__ = lambda s: 7
         
@@ -150,8 +207,8 @@ class TestWeatherIntegration(unittest.TestCase):
             self.image_dir,
             'slack_webhook_url',
             'slack_token',
-            'discord_webhook_url',
             'upload_channel',
+            'discord_webhook_url',
             '--log-file',
             log_file
         ][i]
@@ -175,8 +232,8 @@ class TestWeatherIntegration(unittest.TestCase):
             self.image_dir,
             'slack_webhook_url',
             'slack_token',
-            'discord_webhook_url',
             'upload_channel',
+            'discord_webhook_url',
             '--threshold',
             '0.005'
         ][i]

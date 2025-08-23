@@ -183,6 +183,21 @@ class TestWeatherErrorHandling(unittest.TestCase):
             # Should attempt to remove PNG and GIF files
             self.assertEqual(mock_remove.call_count, 2)
     
+    @patch('weather.os.listdir')
+    def test_delete_storm_images_permission_error(self, mock_listdir):
+        """Test delete_storm_images with permission error."""
+        mock_listdir.return_value = ['two_atl_7d0.png', 'storm.png', 'storm.gif', 'test.txt']
+        
+        with patch('weather.os.remove') as mock_remove:
+            mock_remove.side_effect = PermissionError("Permission denied")
+            
+            # Should not raise exception, just log error
+            from weather import delete_storm_images
+            delete_storm_images(self.temp_dir)
+            
+            # Should attempt to remove only storm files (not two_atl_7d0.png)
+            self.assertEqual(mock_remove.call_count, 2)
+    
     def test_images_are_different_different_sizes(self):
         """Test image comparison with different sized images."""
         # Create two images with different sizes
