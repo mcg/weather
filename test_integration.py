@@ -193,11 +193,20 @@ class TestWeatherIntegration(unittest.TestCase):
         mock_fetch_xml.assert_called_once()
         mock_fetch_images.assert_called_once()
     
+    @patch('weather.upload_files_to_discord')
+    @patch('weather.upload_files_to_slack')
+    @patch('weather.generate_rss_feed')
+    @patch('weather.process_single_image')
+    @patch('weather.delete_storm_images')
     @patch('weather.setup_logging')
     @patch('weather.fetch_xml_feed')
     @patch('sys.argv')
-    def test_main_with_log_file_argument(self, mock_argv, mock_fetch_xml, mock_setup_logging):
+    def test_main_with_log_file_argument(self, mock_argv, mock_fetch_xml, mock_setup_logging,
+                                        mock_delete_storm_images, mock_process_image,
+                                        mock_generate_rss, mock_upload_slack, mock_upload_discord):
         """Test main function with log file argument."""
+        from weather import WeatherImage
+        
         log_file = os.path.join(self.temp_dir, 'test.log')
         
         # Mock command line arguments with log file
@@ -216,10 +225,20 @@ class TestWeatherIntegration(unittest.TestCase):
         
         mock_fetch_xml.return_value = (True, Mock())  # no_storms=True
         
-        with patch('weather.delete_images'):
-            main()
+        # Mock unchanged static image to avoid upload calls
+        static_image = WeatherImage('two_atl_7d0', 'path.png', 'path.gif', 'url', False, 'static')
+        mock_process_image.return_value = static_image
+        
+        main()
         
         mock_setup_logging.assert_called_once_with(log_file)
+        mock_delete_storm_images.assert_called_once_with(self.image_dir)
+        mock_process_image.assert_called_once()
+        mock_generate_rss.assert_called_once_with(static_image, self.rss_file)
+        
+        # Should not upload since image is unchanged
+        mock_upload_slack.assert_not_called()
+        mock_upload_discord.assert_not_called()
     
     @patch('weather.fetch_xml_feed')
     @patch('sys.argv')
