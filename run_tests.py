@@ -24,6 +24,7 @@ def run_tests():
             sys.executable, "-m", "pytest", 
             "test_weather.py", 
             "test_integration.py",
+            "test_env_support.py",
             "-v",
             "--tb=short"
         ]

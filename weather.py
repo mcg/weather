@@ -13,6 +13,7 @@ from slack_sdk.errors import SlackApiError
 import logging
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Dict
+from dotenv import load_dotenv
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -383,19 +384,52 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description='Fetch and process weather images.')
-    parser.add_argument('rss_file_path', help='Path to save the RSS feed file.')
-    parser.add_argument('image_file_path', help='Path to save image files.')
-    parser.add_argument('slack_webhook_url', help='Slack webhook URL (unused).')
-    parser.add_argument('slack_token', help='Slack API token.')
-    parser.add_argument('upload_channel', help='Slack channel ID for uploading files.')
-    parser.add_argument('discord_webhook_url', help='Discord webhook URL.')
+    parser.add_argument('--env-file', help='Path to .env file to load environment variables from.')
+    parser.add_argument('rss_file_path', nargs='?', help='Path to save the RSS feed file.')
+    parser.add_argument('image_file_path', nargs='?', help='Path to save image files.')
+    parser.add_argument('slack_webhook_url', nargs='?', help='Slack webhook URL (unused).')
+    parser.add_argument('slack_token', nargs='?', help='Slack API token.')
+    parser.add_argument('upload_channel', nargs='?', help='Slack channel ID for uploading files.')
+    parser.add_argument('discord_webhook_url', nargs='?', help='Discord webhook URL.')
     parser.add_argument('--log-file', help='Path to log file (optional).')
     parser.add_argument('--threshold', type=float, default=0.001, 
                        help='Threshold for image difference detection (default: 0.001).')
 
     args = parser.parse_args()
     
-    setup_logging(args.log_file)
+    # Load .env file if specified
+    if args.env_file:
+        load_dotenv(args.env_file)
+    
+    # Helper to get config value from arg or environment
+    def get_config_value(arg_value, env_key):
+        return arg_value if arg_value is not None else os.getenv(env_key)
+
+    # Get values from args or environment variables
+    rss_file_path = get_config_value(args.rss_file_path, 'RSS_FILE_PATH')
+    image_file_path = get_config_value(args.image_file_path, 'IMAGE_FILE_PATH')
+    slack_webhook_url = get_config_value(args.slack_webhook_url, 'SLACK_WEBHOOK_URL')
+    slack_token = get_config_value(args.slack_token, 'SLACK_TOKEN')
+    upload_channel = get_config_value(args.upload_channel, 'UPLOAD_CHANNEL')
+    discord_webhook_url = get_config_value(args.discord_webhook_url, 'DISCORD_WEBHOOK_URL')
+    log_file = get_config_value(args.log_file, 'LOG_FILE')
+    
+    # Validate required arguments
+    required_args = {
+        'rss_file_path': rss_file_path,
+        'image_file_path': image_file_path,
+        'slack_webhook_url': slack_webhook_url,
+        'slack_token': slack_token,
+        'upload_channel': upload_channel,
+        'discord_webhook_url': discord_webhook_url
+    }
+    
+    missing_args = [name for name, value in required_args.items() if not value]
+    if missing_args:
+        parser.error(f"Missing required arguments: {', '.join(missing_args)}. "
+                    f"Provide them as command line arguments or set them in the .env file.")
+    
+    setup_logging(log_file)
     logger.info("Starting weather image processing")
 
     no_storms, soup = fetch_xml_feed()
@@ -404,20 +438,26 @@ def main():
         logger.info("Processing weather images - storms detected")
         
         # Fetch all images
-        all_images = fetch_all_weather_images(soup, args.image_file_path, args.threshold)
+        all_images = fetch_all_weather_images(soup, image_file_path, args.threshold) # pyright: ignore[reportArgumentType]
         
         # Find static image and generate RSS
         static_image = next((img for img in all_images if img.image_type == 'static'), None)
         if static_image:
-            generate_rss_feed(static_image, args.rss_file_path)
-        
+            generate_rss_feed(static_image, rss_file_path) # pyright: ignore[reportArgumentType]
+
         # Filter new images for upload
         new_images = [img for img in all_images if img.is_new]
         
         if new_images:
             logger.info(f"Uploading {len(new_images)} new images")
-            upload_files_to_slack(new_images, args.slack_token, args.upload_channel)
-            upload_files_to_discord(new_images, args.discord_webhook_url)
+            if slack_token and upload_channel:
+                upload_files_to_slack(new_images, slack_token, upload_channel)
+            else:
+                logger.info("Skipping Slack upload: missing slack_token or upload_channel.")
+            if discord_webhook_url:
+                upload_files_to_discord(new_images, discord_webhook_url)
+            else:
+                logger.info("Skipping Discord upload: missing discord_webhook_url.")
         else:
             logger.info("No new images to upload")
         
@@ -426,21 +466,27 @@ def main():
         logger.info("No tropical cyclones expected - checking static image only")
         
         # Clean up old storm images but keep static images
-        delete_storm_images(args.image_file_path)
+        delete_storm_images(image_file_path) # pyright: ignore[reportArgumentType]
         
         # Process only the static image when no storms are active
         static_url = 'https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png'
-        static_image = process_single_image(static_url, 'two_atl_7d0', args.image_file_path, args.threshold)
+        static_image = process_single_image(static_url, 'two_atl_7d0', image_file_path, args.threshold) # pyright: ignore[reportArgumentType]
         static_image.image_type = 'static'
         
         # Generate RSS feed for the static image
-        generate_rss_feed(static_image, args.rss_file_path)
+        generate_rss_feed(static_image, rss_file_path) # pyright: ignore[reportArgumentType]
         
         # Only upload if the static image has been updated
         if static_image.is_new:
             logger.info("Static image has been updated - uploading")
-            upload_files_to_slack([static_image], args.slack_token, args.upload_channel)
-            upload_files_to_discord([static_image], args.discord_webhook_url)
+            if slack_token and upload_channel:
+                upload_files_to_slack([static_image], slack_token, upload_channel)
+            else:
+                logger.info("Skipping Slack upload: missing Slack token or upload channel")
+            if discord_webhook_url:
+                upload_files_to_discord([static_image], discord_webhook_url)
+            else:
+                logger.info("Skipping Discord upload: missing Discord webhook URL")
         else:
             logger.info("Static image unchanged - no upload needed")
         
