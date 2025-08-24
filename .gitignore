@@ -3,3 +3,5 @@ weather_cache.sqlite
 
 img
 *.xml
+__pycache__
+.coverage
