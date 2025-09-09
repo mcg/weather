@@ -408,6 +408,7 @@ def main():
     # Get values from args or environment variables
     rss_file_path = get_config_value(args.rss_file_path, 'RSS_FILE_PATH')
     image_file_path = get_config_value(args.image_file_path, 'IMAGE_FILE_PATH')
+    threshold = get_config_value(args.threshold, 'THRESHOLD')
     slack_webhook_url = get_config_value(args.slack_webhook_url, 'SLACK_WEBHOOK_URL')
     slack_token = get_config_value(args.slack_token, 'SLACK_TOKEN')
     upload_channel = get_config_value(args.upload_channel, 'UPLOAD_CHANNEL')
@@ -438,7 +439,7 @@ def main():
         logger.info("Processing weather images - storms detected")
         
         # Fetch all images
-        all_images = fetch_all_weather_images(soup, image_file_path, args.threshold) # pyright: ignore[reportArgumentType]
+        all_images = fetch_all_weather_images(soup, image_file_path, threshold) # pyright: ignore[reportArgumentType]
         
         # Find static image and generate RSS
         static_image = next((img for img in all_images if img.image_type == 'static'), None)
@@ -470,7 +471,7 @@ def main():
         
         # Process only the static image when no storms are active
         static_url = 'https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png'
-        static_image = process_single_image(static_url, 'two_atl_7d0', image_file_path, args.threshold) # pyright: ignore[reportArgumentType]
+        static_image = process_single_image(static_url, 'two_atl_7d0', image_file_path, threshold) # pyright: ignore[reportArgumentType]
         static_image.image_type = 'static'
         
         # Generate RSS feed for the static image
