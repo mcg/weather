@@ -408,7 +408,11 @@ def main():
     # Get values from args or environment variables
     rss_file_path = get_config_value(args.rss_file_path, 'RSS_FILE_PATH')
     image_file_path = get_config_value(args.image_file_path, 'IMAGE_FILE_PATH')
-    threshold = get_config_value(args.threshold, 'THRESHOLD')
+    
+    # Handle threshold specially - check if it's the default value and convert to float
+    threshold_value = os.getenv('THRESHOLD') if args.threshold == 0.001 else args.threshold
+    threshold = float(threshold_value) if threshold_value is not None else 0.001
+    
     slack_webhook_url = get_config_value(args.slack_webhook_url, 'SLACK_WEBHOOK_URL')
     slack_token = get_config_value(args.slack_token, 'SLACK_TOKEN')
     upload_channel = get_config_value(args.upload_channel, 'UPLOAD_CHANNEL')

@@ -11,7 +11,7 @@ def clean_env():
     """Clean up environment variables before and after each test."""
     env_vars_to_clean = [
         'RSS_FILE_PATH', 'IMAGE_FILE_PATH', 'SLACK_WEBHOOK_URL', 
-        'SLACK_TOKEN', 'UPLOAD_CHANNEL', 'DISCORD_WEBHOOK_URL', 'LOG_FILE'
+        'SLACK_TOKEN', 'UPLOAD_CHANNEL', 'DISCORD_WEBHOOK_URL', 'LOG_FILE', 'THRESHOLD'
     ]
     
     # Store original values
@@ -242,3 +242,86 @@ DISCORD_WEBHOOK_URL=https://discord.com/test
     finally:
         # Clean up
         os.unlink(env_file_path)
+
+
+def test_threshold_env_variable():
+    """Test that THRESHOLD environment variable is read and converted to float correctly."""
+    # Create a temporary .env file with THRESHOLD
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.env', delete=False) as f:
+        f.write("""RSS_FILE_PATH=test-feed.xml
+IMAGE_FILE_PATH=test-images/
+SLACK_WEBHOOK_URL=https://hooks.slack.com/test
+SLACK_TOKEN=test-token
+UPLOAD_CHANNEL=test-channel
+DISCORD_WEBHOOK_URL=https://discord.com/test
+THRESHOLD=0.005
+""")
+        env_file_path = f.name
+    
+    try:
+        # Mock the main functionality to avoid network calls and file operations
+        with patch('weather.fetch_xml_feed') as mock_fetch, \
+             patch('weather.fetch_all_weather_images') as mock_fetch_images, \
+             patch('weather.generate_rss_feed') as mock_rss, \
+             patch('weather.upload_files_to_slack') as mock_slack, \
+             patch('weather.upload_files_to_discord') as mock_discord, \
+             patch('sys.argv', ['weather.py', '--env-file', env_file_path]):
+            
+            # Mock no storms scenario but we'll change to storms to test threshold
+            mock_fetch.return_value = (False, MagicMock())  # has storms
+            
+            # Mock images
+            mock_static_image = MagicMock()
+            mock_static_image.image_type = 'static'
+            mock_static_image.is_new = False
+            
+            mock_fetch_images.return_value = [mock_static_image]
+            
+            main()
+            
+            # Verify that fetch_all_weather_images was called with the threshold from .env (0.005)
+            mock_fetch_images.assert_called_once()
+            args = mock_fetch_images.call_args[0]
+            assert args[2] == 0.005  # threshold from .env as float
+            
+    finally:
+        # Clean up
+        os.unlink(env_file_path)
+
+
+def test_threshold_command_line_override():
+    """Test that command line threshold argument overrides environment variable."""
+    # Set environment variable
+    os.environ['THRESHOLD'] = '0.002'
+    
+    try:
+        # Mock the main functionality
+        with patch('weather.fetch_xml_feed') as mock_fetch, \
+             patch('weather.fetch_all_weather_images') as mock_fetch_images, \
+             patch('weather.generate_rss_feed') as mock_rss, \
+             patch('weather.upload_files_to_slack') as mock_slack, \
+             patch('weather.upload_files_to_discord') as mock_discord, \
+             patch('sys.argv', ['weather.py', 'test-feed.xml', 'test-images/', 
+                               'slack_webhook', 'slack_token', 'channel', 'discord_webhook',
+                               '--threshold', '0.008']):
+            
+            mock_fetch.return_value = (False, MagicMock())  # has storms
+            
+            # Mock images
+            mock_static_image = MagicMock()
+            mock_static_image.image_type = 'static'
+            mock_static_image.is_new = False
+            
+            mock_fetch_images.return_value = [mock_static_image]
+            
+            main()
+            
+            # Verify that fetch_all_weather_images was called with command line threshold (0.008)
+            mock_fetch_images.assert_called_once()
+            args = mock_fetch_images.call_args[0]
+            assert args[2] == 0.008  # command line threshold should override env
+            
+    finally:
+        # Clean up environment
+        if 'THRESHOLD' in os.environ:
+            del os.environ['THRESHOLD']
