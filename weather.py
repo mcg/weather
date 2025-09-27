@@ -52,7 +52,7 @@ class WeatherImage:
     is_new: bool
     image_type: str  # 'static', 'cone', 'speg'
 
-def fetch_xml_feed() -> Tuple[bool, BeautifulSoup]:
+def fetch_xml_feed() -> Tuple[int, BeautifulSoup]:
     """Fetch and parse the XML feed from NOAA."""
     logger.info("Fetching XML feed from NOAA")
     
@@ -65,11 +65,10 @@ def fetch_xml_feed() -> Tuple[bool, BeautifulSoup]:
     no_storms = soup.find(string=re.compile(no_storms_text, re.IGNORECASE)) is not None
     
     # Check for active storms
-    if not no_storms:
-        storm_titles = soup.find_all('title', string=STORM_PATTERN)
-        no_storms = len(storm_titles) == 0
-        logger.info(f"Found {len(storm_titles)} active storms" if storm_titles else "No active storms found")
-    else:
+    storm_titles = soup.find_all('title', string=STORM_PATTERN)
+    no_storms = len(storm_titles)
+    logger.info(f"Found {len(storm_titles)} active storms" if storm_titles else "No active storms found")
+    if no_storms:
         logger.info("No tropical cyclones expected in the next 7 days")
     
     return no_storms, soup
@@ -392,7 +391,7 @@ def main():
     parser.add_argument('upload_channel', nargs='?', help='Slack channel ID for uploading files.')
     parser.add_argument('discord_webhook_url', nargs='?', help='Discord webhook URL.')
     parser.add_argument('--log-file', help='Path to log file (optional).')
-    parser.add_argument('--threshold', type=float, default=0.001, 
+    parser.add_argument('--threshold', type=float, 
                        help='Threshold for image difference detection (default: 0.001).')
 
     args = parser.parse_args()
@@ -414,6 +413,20 @@ def main():
     discord_webhook_url = get_config_value(args.discord_webhook_url, 'DISCORD_WEBHOOK_URL')
     log_file = get_config_value(args.log_file, 'LOG_FILE')
     
+    # Handle threshold with proper type conversion - command line args take precedence
+    if args.threshold is not None:
+        threshold = args.threshold
+    else:
+        # Try to get from environment variable, fallback to default
+        threshold_env = os.getenv('THRESHOLD')
+        if threshold_env is not None:
+            try:
+                threshold = float(threshold_env)
+            except ValueError:
+                parser.error(f"Invalid THRESHOLD value '{threshold_env}'. Must be a valid float.")
+        else:
+            threshold = 0.001  # Default value
+    
     # Validate required arguments
     required_args = {
         'rss_file_path': rss_file_path,
@@ -434,11 +447,11 @@ def main():
 
     no_storms, soup = fetch_xml_feed()
     
-    if not no_storms:
+    if no_storms > 0:
         logger.info("Processing weather images - storms detected")
         
         # Fetch all images
-        all_images = fetch_all_weather_images(soup, image_file_path, args.threshold) # pyright: ignore[reportArgumentType]
+        all_images = fetch_all_weather_images(soup, image_file_path, threshold) # pyright: ignore[reportArgumentType]
         
         # Find static image and generate RSS
         static_image = next((img for img in all_images if img.image_type == 'static'), None)
