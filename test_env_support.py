@@ -56,7 +56,7 @@ LOG_FILE=test.log
              patch('weather.setup_logging') as mock_logging, \
              patch('sys.argv', ['weather.py', '--env-file', env_file_path]):
             
-            mock_fetch.return_value = (True, None)  # No storms
+            mock_fetch.return_value = (0, None)  # No storms (count = 0)
             
             # Mock the static image processing
             mock_static_image = MagicMock()
@@ -112,7 +112,7 @@ LOG_FILE=env.log
                  '--log-file', 'cli.log'  # Override the log file from .env
              ]):
             
-            mock_fetch.return_value = (True, None)  # No storms
+            mock_fetch.return_value = (0, None)  # No storms (count = 0)
             
             # Mock the static image processing
             mock_static_image = MagicMock()
@@ -164,7 +164,7 @@ LOG_FILE=env.log
                  # Note: No --log-file specified, should use .env value
              ]):
             
-            mock_fetch.return_value = (True, None)  # No storms
+            mock_fetch.return_value = (0, None)  # No storms (count = 0)
             
             # Mock the static image processing
             mock_static_image = MagicMock()
@@ -215,7 +215,7 @@ DISCORD_WEBHOOK_URL=https://discord.com/test
             
             # Simulate storms detected
             mock_soup = MagicMock()
-            mock_fetch.return_value = (False, mock_soup)  # Storms detected
+            mock_fetch.return_value = (1, mock_soup)  # Storms detected (count = 1)
             
             # Mock images with one static and one new
             mock_static_image = MagicMock()
@@ -268,7 +268,7 @@ THRESHOLD=0.005
              patch('sys.argv', ['weather.py', '--env-file', env_file_path]):
             
             # Mock no storms scenario but we'll change to storms to test threshold
-            mock_fetch.return_value = (False, MagicMock())  # has storms
+            mock_fetch.return_value = (1, MagicMock())  # has storms (count = 1)
             
             # Mock images
             mock_static_image = MagicMock()
@@ -303,7 +303,7 @@ def test_threshold_command_line_override():
                                'slack_webhook', 'slack_token', 'channel', 'discord_webhook',
                                '--threshold', '0.008']):
             
-            mock_fetch.return_value = (False, MagicMock())  # has storms
+            mock_fetch.return_value = (1, MagicMock())  # has storms (count = 1)
             
             # Mock images
             mock_static_image = MagicMock()

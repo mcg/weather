@@ -44,7 +44,7 @@ class TestWeatherFunctions(unittest.TestCase):
         
         no_storms, soup = fetch_xml_feed()
         
-        self.assertTrue(no_storms)
+        self.assertEqual(no_storms, 0)  # Expecting count of storms (0 when no storms)
         self.assertIsInstance(soup, BeautifulSoup)
         mock_get.assert_called_once_with('https://www.nhc.noaa.gov/index-at.xml')
     
@@ -60,7 +60,7 @@ class TestWeatherFunctions(unittest.TestCase):
         
         no_storms, soup = fetch_xml_feed()
         
-        self.assertFalse(no_storms)
+        self.assertEqual(no_storms, 1)  # Expecting count of storms (1 when there are storms)
         self.assertIsInstance(soup, BeautifulSoup)
     
     def test_extract_storm_info_hurricane(self):

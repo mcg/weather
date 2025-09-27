@@ -50,7 +50,7 @@ class TestWeatherIntegration(unittest.TestCase):
         mock_argv.__len__ = lambda s: 7
         
         # Mock no storms scenario
-        mock_fetch_xml.return_value = (True, Mock())  # no_storms=True
+        mock_fetch_xml.return_value = (0, Mock())  # no_storms=0 (count)
         
         # Mock updated static image
         static_image = WeatherImage('two_atl_7d0', 'path.png', 'path.gif', 'url', True, 'static')
@@ -92,7 +92,7 @@ class TestWeatherIntegration(unittest.TestCase):
         mock_argv.__len__ = lambda s: 7
         
         # Mock no storms scenario
-        mock_fetch_xml.return_value = (True, Mock())  # no_storms=True
+        mock_fetch_xml.return_value = (0, Mock())  # no_storms=0 (count)
         
         # Mock unchanged static image
         static_image = WeatherImage('two_atl_7d0', 'path.png', 'path.gif', 'url', False, 'static')
@@ -135,7 +135,7 @@ class TestWeatherIntegration(unittest.TestCase):
         
         # Mock storms scenario
         mock_soup = Mock()
-        mock_fetch_xml.return_value = (False, mock_soup)  # no_storms=False
+        mock_fetch_xml.return_value = (1, mock_soup)  # storms=1 (count)
         
         # Mock images
         static_image = WeatherImage('static', 'path.png', 'path.gif', 'url', True, 'static')
@@ -178,7 +178,7 @@ class TestWeatherIntegration(unittest.TestCase):
         
         # Mock storms scenario
         mock_soup = Mock()
-        mock_fetch_xml.return_value = (False, mock_soup)  # no_storms=False
+        mock_fetch_xml.return_value = (1, mock_soup)  # storms=1 (count)
         
         # Mock only cached/unchanged images
         cached_image = WeatherImage('cached', 'cached.png', 'cached.gif', 'url', False, 'static')
@@ -223,7 +223,7 @@ class TestWeatherIntegration(unittest.TestCase):
         ][i]
         mock_argv.__len__ = lambda s: 9
         
-        mock_fetch_xml.return_value = (True, Mock())  # no_storms=True
+        mock_fetch_xml.return_value = (0, Mock())  # no_storms=0 (count)
         
         # Mock unchanged static image to avoid upload calls
         static_image = WeatherImage('two_atl_7d0', 'path.png', 'path.gif', 'url', False, 'static')
@@ -258,12 +258,12 @@ class TestWeatherIntegration(unittest.TestCase):
         ][i]
         mock_argv.__len__ = lambda s: 9
         
-        mock_fetch_xml.return_value = (True, Mock())  # no_storms=True
+        mock_fetch_xml.return_value = (0, Mock())  # no_storms=0 (count)
         
         with patch('weather.delete_images'), \
              patch('weather.fetch_all_weather_images') as mock_fetch_images:
             
-            mock_fetch_xml.return_value = (False, Mock())  # Change to have storms
+            mock_fetch_xml.return_value = (1, Mock())  # Change to have storms (count=1)
             mock_fetch_images.return_value = []
             
             main()
