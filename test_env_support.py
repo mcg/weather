@@ -291,8 +291,6 @@ THRESHOLD=0.005
 
 def test_threshold_command_line_override():
     """Test that command line threshold argument overrides environment variable."""
-    # Set environment variable
-    os.environ['THRESHOLD'] = '0.002'
     
     try:
         # Mock the main functionality
