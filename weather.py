@@ -38,9 +38,9 @@ urls_expire_after = {'https://web.uwm.edu/hurricane-models/models/*': timedelta(
 requests_cache.install_cache('weather_cache', cache_control=True, urls_expire_after=urls_expire_after)
 
 # Regex patterns
-STORM_PATTERN = re.compile(r'.*(Tropical Storm|Hurricane).*Graphics.*', re.IGNORECASE)
+STORM_PATTERN = re.compile(r'.*(Tropical Storm|Tropical Depression|Hurricane).*Graphics.*', re.IGNORECASE)
 SPEG_PATTERN = re.compile(r'.*Summary for (Tropical Storm|Hurricane).*', re.IGNORECASE)
-STORM_NAME_PATTERN = re.compile(r'(Tropical\sStorm|Hurricane) (.*?) Graphics', re.IGNORECASE)
+STORM_NAME_PATTERN = re.compile(r'(Tropical\sStorm|Tropical\sDepression|Hurricane) (.*?) Graphics', re.IGNORECASE)
 
 @dataclass
 class WeatherImage:
@@ -83,7 +83,7 @@ def extract_storm_info(title_element) -> Optional[Dict[str, str]]:
     storm_type = match.group(1).strip()
     storm_name = match.group(2).strip()
     
-    if storm_type not in ['Hurricane', 'Tropical Storm']:
+    if storm_type not in ['Hurricane', 'Tropical Storm', 'Tropical Depression']:
         return None
     
     return {'name': storm_name, 'type': storm_type}
@@ -408,11 +408,6 @@ def main():
     # Get values from args or environment variables
     rss_file_path = get_config_value(args.rss_file_path, 'RSS_FILE_PATH')
     image_file_path = get_config_value(args.image_file_path, 'IMAGE_FILE_PATH')
-    
-    # Handle threshold specially - check if it's the default value and convert to float
-    threshold_value = os.getenv('THRESHOLD') if args.threshold == 0.001 else args.threshold
-    threshold = float(threshold_value) if threshold_value is not None else 0.001
-    
     slack_webhook_url = get_config_value(args.slack_webhook_url, 'SLACK_WEBHOOK_URL')
     slack_token = get_config_value(args.slack_token, 'SLACK_TOKEN')
     upload_channel = get_config_value(args.upload_channel, 'UPLOAD_CHANNEL')
@@ -443,7 +438,7 @@ def main():
         logger.info("Processing weather images - storms detected")
         
         # Fetch all images
-        all_images = fetch_all_weather_images(soup, image_file_path, threshold) # pyright: ignore[reportArgumentType]
+        all_images = fetch_all_weather_images(soup, image_file_path, args.threshold) # pyright: ignore[reportArgumentType]
         
         # Find static image and generate RSS
         static_image = next((img for img in all_images if img.image_type == 'static'), None)
@@ -475,7 +470,7 @@ def main():
         
         # Process only the static image when no storms are active
         static_url = 'https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png'
-        static_image = process_single_image(static_url, 'two_atl_7d0', image_file_path, threshold) # pyright: ignore[reportArgumentType]
+        static_image = process_single_image(static_url, 'two_atl_7d0', image_file_path, args.threshold) # pyright: ignore[reportArgumentType]
         static_image.image_type = 'static'
         
         # Generate RSS feed for the static image
