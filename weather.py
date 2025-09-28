@@ -58,7 +58,7 @@ def fetch_xml_feed() -> Tuple[int, BeautifulSoup]:
     
     url = 'https://www.nhc.noaa.gov/index-at.xml'
     response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'xml')
+    soup = BeautifulSoup(response.content, 'xml')
     
     # Check for "no storms expected" message
     no_storms_text = "Tropical cyclone formation is not expected during the next 7 days"
