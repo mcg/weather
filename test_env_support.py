@@ -42,6 +42,7 @@ SLACK_TOKEN=test-token
 UPLOAD_CHANNEL=test-channel
 DISCORD_WEBHOOK_URL=https://discord.com/test
 LOG_FILE=test.log
+THRESHOLD=0.005
 """)
         env_file_path = f.name
     
@@ -88,6 +89,7 @@ SLACK_TOKEN=env-token
 UPLOAD_CHANNEL=env-channel
 DISCORD_WEBHOOK_URL=https://discord.com/env
 LOG_FILE=env.log
+THRESHOLD=0.005
 """)
         env_file_path = f.name
     
@@ -96,6 +98,7 @@ LOG_FILE=env.log
         with patch('weather.fetch_xml_feed') as mock_fetch, \
              patch('weather.delete_storm_images') as mock_delete, \
              patch('weather.process_single_image') as mock_process, \
+             patch('weather.fetch_all_weather_images') as mock_fetch_images, \
              patch('weather.generate_rss_feed') as mock_rss, \
              patch('weather.upload_files_to_slack') as mock_slack, \
              patch('weather.upload_files_to_discord') as mock_discord, \
@@ -109,21 +112,33 @@ LOG_FILE=env.log
                  'cli-token',
                  'cli-channel',
                  'https://discord.com/cli',
+                 '--threshold', '0.008',  # Override threshold (env has 0.005)
                  '--log-file', 'cli.log'  # Override the log file from .env
              ]):
             
-            mock_fetch.return_value = (0, None)  # No storms (count = 0)
+            # Test with storms present (tests threshold via fetch_all_weather_images)
+            mock_fetch.return_value = (1, MagicMock())  # Has storms to test threshold
             
-            # Mock the static image processing
+            # Mock images
             mock_static_image = MagicMock()
+            mock_static_image.image_type = 'static'
             mock_static_image.is_new = False
-            mock_process.return_value = mock_static_image
             
-            # This should work and use CLI args over .env values
+            mock_fetch_images.return_value = [mock_static_image]
+            
+            # This should not raise an error - all required args should be loaded from .env but overridden by CLI
             main()
             
-            # The function should have been called with CLI args, not .env values
+            # Verify that setup_logging was called with the CLI log file, not env
             mock_logging.assert_called_once_with('cli.log')  # CLI log file, not env
+            
+            # When storms are present, delete_storm_images is NOT called
+            mock_delete.assert_not_called()
+            
+            # Verify that fetch_all_weather_images was called with CLI threshold (0.008), not env (0.005)
+            mock_fetch_images.assert_called_once()
+            args = mock_fetch_images.call_args[0]
+            assert args[2] == 0.008  # CLI threshold should override env threshold
     finally:
         # Clean up
         os.unlink(env_file_path)
@@ -140,6 +155,7 @@ SLACK_TOKEN=env-token
 UPLOAD_CHANNEL=env-channel
 DISCORD_WEBHOOK_URL=https://discord.com/env
 LOG_FILE=env.log
+THRESHOLD=0.005
 """)
         env_file_path = f.name
     
@@ -200,6 +216,7 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/test
 SLACK_TOKEN=test-token
 UPLOAD_CHANNEL=test-channel
 DISCORD_WEBHOOK_URL=https://discord.com/test
+THRESHOLD=0.005
 """)
         env_file_path = f.name
     
