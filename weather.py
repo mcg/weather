@@ -92,13 +92,25 @@ def find_speg_model(soup, storm_name: str) -> Optional[str]:
     speg_titles = soup.find_all('title', string=SPEG_PATTERN)
     
     for speg_title in speg_titles:
-        item = speg_title.find_parent('item')
-        if item:
-            cyclone_tag = item.find('nhc:Cyclone')
-            if cyclone_tag:
-                atcf_tag = cyclone_tag.find('nhc:atcf')
-                if atcf_tag:
-                    return atcf_tag.text.lower()
+        # Check if the title contains the storm name
+        if storm_name.lower() in speg_title.text.lower():
+            item = speg_title.find_parent('item')
+            if item:
+                cyclone_tag = item.find('nhc:Cyclone')
+                if cyclone_tag:
+                    # Check if name tag exists and matches, or fall back to title matching
+                    name_tag = cyclone_tag.find('nhc:name')
+                    if name_tag:
+                        # If name tag exists, verify it matches
+                        if name_tag.text.lower() == storm_name.lower():
+                            atcf_tag = cyclone_tag.find('nhc:atcf')
+                            if atcf_tag:
+                                return atcf_tag.text.lower()
+                    else:
+                        # If no name tag, rely on title matching (for backward compatibility)
+                        atcf_tag = cyclone_tag.find('nhc:atcf')
+                        if atcf_tag:
+                            return atcf_tag.text.lower()
     return None
 
 def find_cyclones_in_feed(soup) -> List[Dict[str, str]]:
