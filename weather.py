@@ -39,7 +39,7 @@ requests_cache.install_cache('weather_cache', cache_control=True, urls_expire_af
 
 # Regex patterns
 STORM_PATTERN = re.compile(r'.*(Tropical Storm|Tropical Depression|Hurricane).*Graphics.*', re.IGNORECASE)
-SPEG_PATTERN = re.compile(r'.*Summary for (Tropical Storm|Hurricane).*', re.IGNORECASE)
+SPEG_PATTERN = re.compile(r'.*Summary for (Tropical\sStorm|Hurricane).*', re.IGNORECASE)
 STORM_NAME_PATTERN = re.compile(r'(Tropical\sStorm|Tropical\sDepression|Hurricane) (.*?) Graphics', re.IGNORECASE)
 
 @dataclass
