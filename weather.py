@@ -12,7 +12,6 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 import logging
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Dict
 from dotenv import load_dotenv
 
 # Configure logging
@@ -52,7 +51,7 @@ class WeatherImage:
     is_new: bool
     image_type: str  # 'static', 'cone', 'speg'
 
-def fetch_xml_feed() -> Tuple[int, BeautifulSoup]:
+def fetch_xml_feed() -> tuple[int, BeautifulSoup]:
     """Fetch and parse the XML feed from NOAA."""
     logger.info("Fetching XML feed from NOAA")
     
@@ -73,7 +72,7 @@ def fetch_xml_feed() -> Tuple[int, BeautifulSoup]:
     
     return no_storms, soup
 
-def extract_storm_info(title_element) -> Optional[Dict[str, str]]:
+def extract_storm_info(title_element) -> dict[str, str] | None:
     """Extract storm information from a title element."""
     match = STORM_NAME_PATTERN.search(title_element.text)
     if not match:
@@ -87,7 +86,7 @@ def extract_storm_info(title_element) -> Optional[Dict[str, str]]:
     
     return {'name': storm_name, 'type': storm_type}
 
-def find_speg_model(soup, storm_name: str) -> Optional[str]:
+def find_speg_model(soup, storm_name: str) -> str | None:
     """Find SPEG model ID for a given storm."""
     speg_titles = soup.find_all('title', string=SPEG_PATTERN)
     
@@ -113,7 +112,7 @@ def find_speg_model(soup, storm_name: str) -> Optional[str]:
                             return atcf_tag.text.lower()
     return None
 
-def find_cyclones_in_feed(soup) -> List[Dict[str, str]]:
+def find_cyclones_in_feed(soup) -> list[dict[str, str]]:
     """Find all cyclones in the XML feed."""
     logger.info("Searching for cyclones in feed")
     
@@ -231,7 +230,7 @@ def process_single_image(url: str, base_name: str, image_dir: str, threshold: fl
     
     return WeatherImage(base_name, png_path, gif_path, url, is_different, "processed")
 
-def fetch_all_weather_images(soup, image_dir: str, threshold: float = 0.001) -> List[WeatherImage]:
+def fetch_all_weather_images(soup, image_dir: str, threshold: float = 0.001) -> list[WeatherImage]:
     """Fetch all weather images and return a list of WeatherImage objects."""
     logger.info("Fetching all weather images")
     images = []
@@ -297,7 +296,7 @@ def generate_rss_feed(static_image: WeatherImage, rss_file_path: str):
 
     fg.rss_file(rss_file_path)
 
-def upload_files_to_slack(images: List[WeatherImage], slack_token: str, upload_channel: str):
+def upload_files_to_slack(images: list[WeatherImage], slack_token: str, upload_channel: str):
     """Upload images to Slack."""
     client = WebClient(token=slack_token)
     file_uploads = []
@@ -332,7 +331,7 @@ def upload_files_to_slack(images: List[WeatherImage], slack_token: str, upload_c
             logger.error(f"Slack API error: {e.response['error']}")
             raise
 
-def upload_files_to_discord(images: List[WeatherImage], discord_webhook_url: str):
+def upload_files_to_discord(images: list[WeatherImage], discord_webhook_url: str):
     """Upload images to Discord."""
     webhook = SyncWebhook.from_url(discord_webhook_url)
     
