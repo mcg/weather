@@ -46,3 +46,14 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html",
 ]
+
+[tool.pyright]
+typeCheckingMode = "basic"
+stubPath = "stubs"
+
+[dependency-groups]
+dev = [
+    "types-beautifulsoup4>=4.12.0.20250516",
+    "types-pillow>=10.2.0.20240822",
+    "types-requests>=2.32.4.20250913",
+]
