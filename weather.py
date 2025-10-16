@@ -166,7 +166,7 @@ def images_are_different(new_image_path: str, existing_image_path: str, threshol
             diff_gray = diff.convert('L')
             pixels = list(diff_gray.getdata()) # pyright: ignore[reportArgumentType]
             
-            different_pixels = sum(1 for pixel in pixels if pixel > 0)
+            different_pixels = sum(1 for pixel in pixels if pixel is not None and pixel > 0)
             difference_percentage = different_pixels / len(pixels)
             
             logger.info(f"Image comparison: {difference_percentage:.4f} ({difference_percentage*100:.2f}%) pixels different")

@@ -190,6 +190,38 @@ class TestWeatherFunctions(unittest.TestCase):
         
         self.assertTrue(result)
     
+    @patch('weather.ImageChops.difference')
+    def test_images_are_different_with_none_pixels(self, mock_difference):
+        """Test image comparison when pixel data contains None values."""
+        img1_path = os.path.join(self.temp_dir, 'img1.png')
+        img2_path = os.path.join(self.temp_dir, 'img2.png')
+        
+        # Create test images
+        img1 = Image.new('RGB', (100, 100), color='blue')
+        img2 = Image.new('RGB', (100, 100), color='red')
+        img1.save(img1_path)
+        img2.save(img2_path)
+        
+        # Create a mock diff image that returns None values in getdata()
+        mock_diff = Mock()
+        mock_diff_gray = Mock()
+        mock_diff.convert.return_value = mock_diff_gray
+        
+        # Mock pixel data with None values mixed in
+        mock_pixel_data = [0, 10, None, 5, None, 20, 0, None, 15]
+        mock_diff_gray.getdata.return_value = mock_pixel_data
+        
+        mock_difference.return_value = mock_diff
+        
+        # This should not raise an exception despite None values
+        result = images_are_different(img1_path, img2_path)
+        
+        # Should return True because there are non-None pixels > 0
+        self.assertTrue(result)
+        
+        # Verify the difference function was called
+        mock_difference.assert_called_once()
+    
     def test_update_gif_new_file(self):
         """Test creating a new GIF file."""
         gif_path = os.path.join(self.temp_dir, 'new.gif')
