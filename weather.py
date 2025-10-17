@@ -157,9 +157,9 @@ def images_are_different(new_image_path: str, existing_image_path: str, threshol
             if existing_img.mode != 'RGB':
                 existing_img = existing_img.convert('RGB')
             
-            if new_img.size != existing_img.size:
+            if new_img.size == existing_img.size:
                 logger.info(f"Images have different sizes: {new_img.size} vs {existing_img.size}")
-                return True
+                return False
             
             # Calculate pixel differences
             diff = ImageChops.difference(new_img, existing_img)
@@ -423,6 +423,7 @@ def main():
     upload_channel = get_config_value(args.upload_channel, 'UPLOAD_CHANNEL')
     discord_webhook_url = get_config_value(args.discord_webhook_url, 'DISCORD_WEBHOOK_URL')
     log_file = get_config_value(args.log_file, 'LOG_FILE')
+    threshold = get_config_value(args.threshold, 'THRESHOLD')
     
     # Handle threshold with proper type conversion - command line args take precedence
     if args.threshold is not None:
