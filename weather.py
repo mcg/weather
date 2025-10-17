@@ -157,10 +157,6 @@ def images_are_different(new_image_path: str, existing_image_path: str, threshol
             if existing_img.mode != 'RGB':
                 existing_img = existing_img.convert('RGB')
             
-            if new_img.size == existing_img.size:
-                logger.info(f"Images have different sizes: {new_img.size} vs {existing_img.size}")
-                return False
-            
             # Calculate pixel differences
             diff = ImageChops.difference(new_img, existing_img)
             diff_gray = diff.convert('L')
