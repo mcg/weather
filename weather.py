@@ -491,7 +491,7 @@ def main():
         
         # Process only the static image when no storms are active
         static_url = 'https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png'
-        static_image = process_single_image(static_url, 'two_atl_7d0', image_file_path, args.threshold) # pyright: ignore[reportArgumentType]
+        static_image = process_single_image(static_url, 'two_atl_7d0', image_file_path, threshold) # pyright: ignore[reportArgumentType]
         static_image.image_type = 'static'
         
         # Generate RSS feed for the static image
