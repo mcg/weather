@@ -422,18 +422,13 @@ def main():
     threshold = get_config_value(args.threshold, 'THRESHOLD')
     
     # Handle threshold with proper type conversion - command line args take precedence
-    if args.threshold is not None:
-        threshold = args.threshold
+    if threshold is not None:
+        try:
+            threshold = float(threshold)
+        except ValueError:
+            parser.error(f"Invalid THRESHOLD value '{threshold}'. Must be a valid float.")
     else:
-        # Try to get from environment variable, fallback to default
-        threshold_env = os.getenv('THRESHOLD')
-        if threshold_env is not None:
-            try:
-                threshold = float(threshold_env)
-            except ValueError:
-                parser.error(f"Invalid THRESHOLD value '{threshold_env}'. Must be a valid float.")
-        else:
-            threshold = 0.001  # Default value
+        threshold = 0.001  # Default value
     
     # Validate required arguments
     required_args = {
