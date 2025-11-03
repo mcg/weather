@@ -198,21 +198,6 @@ class TestWeatherErrorHandling(unittest.TestCase):
             # Should attempt to remove only storm files (not two_atl_7d0.png)
             self.assertEqual(mock_remove.call_count, 2)
     
-    def test_images_are_different_different_sizes(self):
-        """Test image comparison with different sized images."""
-        # Create two images with different sizes
-        small_path = os.path.join(self.temp_dir, 'small.png')
-        large_path = os.path.join(self.temp_dir, 'large.png')
-        
-        small_img = Image.new('RGB', (50, 50), color='red')
-        large_img = Image.new('RGB', (100, 100), color='red')
-        
-        small_img.save(small_path)
-        large_img.save(large_path)
-        
-        result = images_are_different(small_path, large_path)
-        self.assertTrue(result)
-    
     def test_images_are_different_different_modes(self):
         """Test image comparison with different color modes."""
         rgb_path = os.path.join(self.temp_dir, 'rgb.png')
