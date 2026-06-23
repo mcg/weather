@@ -20,7 +20,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "basedpyright>=1.39.7",
-    "pytest>=9.0.3",
+    "pytest>=9.1.0",
     "pytest-cov>=6.0.0",
     "pytest-mock>=3.14.0",
     "ruff>=0.15.13",
