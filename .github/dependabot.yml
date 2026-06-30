@@ -2,6 +2,11 @@ version: 2
 
 updates:
   - package-ecosystem: "uv"
+    cooldown:
+      default-days: 5
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
     directory: "/"
     schedule:
       interval: "weekly"
@@ -9,3 +14,12 @@ updates:
       - dependency-name: "*"
         update-types:
           - "version-update:semver-patch"
+  - package-ecosystem: github-actions
+    directory : ".github/"
+    cooldown:
+      default-days: 5
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+    schedule:
+      interval: weekly
