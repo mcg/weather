@@ -50,6 +50,7 @@ THRESHOLD=0.005
         # Mock the main functionality to avoid network calls and file operations
         with patch('weather.fetch_xml_feed') as mock_fetch, \
              patch('weather.delete_storm_images') as mock_delete, \
+             patch('weather.delete_images') as mock_delete_images, \
              patch('weather.process_single_image') as mock_process, \
              patch('weather.generate_rss_feed') as mock_rss, \
              patch('weather.upload_files_to_slack') as mock_slack, \
@@ -72,6 +73,9 @@ THRESHOLD=0.005
             
             # Verify that delete_storm_images was called with the image path from .env
             mock_delete.assert_called_once_with('test-images/')
+            
+            # Verify that delete_images was called to clean up after processing
+            mock_delete_images.assert_called_once_with('test-images/')
             
     finally:
         # Clean up
@@ -163,6 +167,7 @@ THRESHOLD=0.005
         # Mock the main functionality to avoid network calls and file operations
         with patch('weather.fetch_xml_feed') as mock_fetch, \
              patch('weather.delete_storm_images') as mock_delete, \
+             patch('weather.delete_images') as mock_delete_images, \
              patch('weather.process_single_image') as mock_process, \
              patch('weather.generate_rss_feed') as mock_rss, \
              patch('weather.upload_files_to_slack') as mock_slack, \
@@ -193,6 +198,7 @@ THRESHOLD=0.005
             mock_logging.assert_called_once_with('env.log')
             # Should use CLI args for required params
             mock_delete.assert_called_once_with('cli-images/')
+            mock_delete_images.assert_called_once_with('cli-images/')
             
     finally:
         # Clean up

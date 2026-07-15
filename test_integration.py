@@ -23,6 +23,7 @@ class TestWeatherIntegration(unittest.TestCase):
         import shutil
         shutil.rmtree(self.temp_dir)
     
+    @patch('weather.delete_images')
     @patch('weather.upload_files_to_discord')
     @patch('weather.upload_files_to_slack')
     @patch('weather.generate_rss_feed')
@@ -33,7 +34,7 @@ class TestWeatherIntegration(unittest.TestCase):
     def test_main_no_storms_with_updated_static_image(self, mock_argv, mock_fetch_xml, 
                                                      mock_delete_storm_images, mock_process_image,
                                                      mock_generate_rss, mock_upload_slack, 
-                                                     mock_upload_discord):
+                                                     mock_upload_discord, mock_delete_images):
         """Test main function when no storms are expected and static image is updated."""
         from weather import WeatherImage
         
@@ -64,7 +65,11 @@ class TestWeatherIntegration(unittest.TestCase):
         mock_generate_rss.assert_called_once_with(static_image, self.rss_file)
         mock_upload_slack.assert_called_once_with([static_image], 'slack_token', 'upload_channel')
         mock_upload_discord.assert_called_once_with([static_image], 'discord_webhook_url')
+        
+        # The "no active storms" image should be deleted after being posted
+        mock_delete_images.assert_called_once_with(self.image_dir)
     
+    @patch('weather.delete_images')
     @patch('weather.upload_files_to_discord')
     @patch('weather.upload_files_to_slack')
     @patch('weather.generate_rss_feed')
@@ -75,7 +80,7 @@ class TestWeatherIntegration(unittest.TestCase):
     def test_main_no_storms_with_unchanged_static_image(self, mock_argv, mock_fetch_xml, 
                                                        mock_delete_storm_images, mock_process_image,
                                                        mock_generate_rss, mock_upload_slack, 
-                                                       mock_upload_discord):
+                                                       mock_upload_discord, mock_delete_images):
         """Test main function when no storms are expected and static image is unchanged."""
         from weather import WeatherImage
         
@@ -108,6 +113,9 @@ class TestWeatherIntegration(unittest.TestCase):
         # Should not upload since image is unchanged
         mock_upload_slack.assert_not_called()
         mock_upload_discord.assert_not_called()
+        
+        # Images should still be cleaned up even when nothing new was posted
+        mock_delete_images.assert_called_once_with(self.image_dir)
     
     @patch('weather.upload_files_to_discord')
     @patch('weather.upload_files_to_slack')
@@ -193,6 +201,7 @@ class TestWeatherIntegration(unittest.TestCase):
         mock_fetch_xml.assert_called_once()
         mock_fetch_images.assert_called_once()
     
+    @patch('weather.delete_images')
     @patch('weather.upload_files_to_discord')
     @patch('weather.upload_files_to_slack')
     @patch('weather.generate_rss_feed')
@@ -203,7 +212,8 @@ class TestWeatherIntegration(unittest.TestCase):
     @patch('sys.argv')
     def test_main_with_log_file_argument(self, mock_argv, mock_fetch_xml, mock_setup_logging,
                                         mock_delete_storm_images, mock_process_image,
-                                        mock_generate_rss, mock_upload_slack, mock_upload_discord):
+                                        mock_generate_rss, mock_upload_slack, mock_upload_discord,
+                                        mock_delete_images):
         """Test main function with log file argument."""
         from weather import WeatherImage
         
@@ -239,6 +249,9 @@ class TestWeatherIntegration(unittest.TestCase):
         # Should not upload since image is unchanged
         mock_upload_slack.assert_not_called()
         mock_upload_discord.assert_not_called()
+        
+        # Images should still be cleaned up
+        mock_delete_images.assert_called_once_with(self.image_dir)
     
     @patch('weather.fetch_xml_feed')
     @patch('sys.argv')

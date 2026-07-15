@@ -684,8 +684,9 @@ def main() -> None:
     else:
         logger.info("Static image unchanged - no upload needed")
 
+    # Once the "no active storms" image has been posted (or confirmed unchanged),
+    # remove it from disk so the next run always starts from a clean slate and
+    # will post the latest "no active storms" outlook again.
+    delete_images(image_file_path_str)
+
     logger.info("Processing complete - handled static image only")
-
-
-if __name__ == "__main__":
-    main()
