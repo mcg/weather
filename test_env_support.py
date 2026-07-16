@@ -70,8 +70,10 @@ THRESHOLD=0.005
             # Verify that setup_logging was called with the log file from .env
             mock_logging.assert_called_once_with('test.log')
             
-            # Verify that delete_storm_images was called with the image path from .env
-            mock_delete.assert_called_once_with('test-images/')
+            # No-storm cleanup now happens only when we actually upload the no-storm image
+            mock_delete.assert_not_called()
+            
+
             
     finally:
         # Clean up
@@ -191,8 +193,8 @@ THRESHOLD=0.005
             
             # Should use the log file from .env since not specified in CLI
             mock_logging.assert_called_once_with('env.log')
-            # Should use CLI args for required params
-            mock_delete.assert_called_once_with('cli-images/')
+            # No-storm cleanup now happens only when we actually upload the no-storm image
+            mock_delete.assert_not_called()
             
     finally:
         # Clean up
