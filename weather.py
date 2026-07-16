@@ -690,3 +690,7 @@ def main() -> None:
     delete_images(image_file_path_str)
 
     logger.info("Processing complete - handled static image only")
+
+
+if __name__ == "__main__":
+    main()
