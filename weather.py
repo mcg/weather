@@ -292,7 +292,10 @@ def update_gif(png_path: str, gif_path: str, max_frames: int = 10) -> None:
 
 
 def process_single_image(
-    url: str, base_name: str, image_dir: str, threshold: float = 0.001
+    url: str,
+    base_name: str,
+    image_dir: str,
+    threshold: float = 0.001,
 ) -> WeatherImage:
     """Download and process a single image, returning a WeatherImage object."""
     logger.info(f"Processing image: {base_name}")
@@ -522,6 +525,47 @@ def delete_storm_images(image_dir: str) -> None:
     logger.info(f"Deleted {count} storm image files")
 
 
+def no_storm_upload_marker_path(image_dir: str) -> str:
+    """Path for marker indicating no-storm image has already been uploaded."""
+    return os.path.join(image_dir, ".no_storm_uploaded")
+
+
+def clear_no_storm_upload_marker(image_dir: str) -> None:
+    """Clear no-storm marker so next calm period can upload once again."""
+    marker_path = no_storm_upload_marker_path(image_dir)
+    if not os.path.exists(marker_path):
+        return
+
+    try:
+        os.remove(marker_path)
+        logger.info("Cleared no-storm upload marker")
+    except (OSError, PermissionError) as exc:
+        logger.error(f"Failed to clear no-storm upload marker: {exc}")
+
+
+def mark_no_storm_uploaded(image_dir: str) -> None:
+    """Mark that no-storm image has been uploaded for current calm period."""
+    try:
+        os.makedirs(image_dir, exist_ok=True)
+        with open(no_storm_upload_marker_path(image_dir), "w", encoding="utf-8") as marker:
+            _ = marker.write(str(int(time.time())))
+    except (OSError, PermissionError) as exc:
+        logger.error(f"Failed to persist no-storm upload marker: {exc}")
+
+
+def delete_no_storm_gif(image_dir: str) -> None:
+    """Delete only the no-storm GIF loop file."""
+    gif_path = os.path.join(image_dir, "two_atl_7d0.gif")
+    if not os.path.exists(gif_path):
+        return
+
+    try:
+        os.remove(gif_path)
+        logger.info(f"Deleted no-storm GIF: {gif_path}")
+    except (OSError, PermissionError) as exc:
+        logger.error(f"Failed to delete no-storm GIF {gif_path}: {exc}")
+
+
 def require_str(value: str | None, name: str) -> str:
     """Narrow a validated optional string to a string for type checkers."""
     if value is None or value == "":
@@ -644,6 +688,7 @@ def main() -> None:
 
     if active_storm_count > 0:
         logger.info("Processing weather images - storms detected")
+        clear_no_storm_upload_marker(image_file_path_str)
 
         all_images = fetch_all_weather_images(soup, image_file_path_str, threshold)
 
@@ -667,27 +712,34 @@ def main() -> None:
 
     logger.info("No tropical cyclones expected - checking static image only")
 
-    delete_storm_images(image_file_path_str)
-
     static_url = "https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png"
     static_image = process_single_image(
-        static_url, "two_atl_7d0", image_file_path_str, threshold
+        static_url,
+        "two_atl_7d0",
+        image_file_path_str,
+        threshold,
     )
     static_image.image_type = "static"
 
     generate_rss_feed(static_image, rss_file_path_str)
 
-    if static_image.is_new:
-        logger.info("Static image has been updated - uploading")
+    marker_path = no_storm_upload_marker_path(image_file_path_str)
+
+    if os.path.exists(marker_path):
+        logger.info("No-storm image already uploaded for current calm period - no upload needed")
+    elif static_image.image_type == "cached":
+        logger.info("No-storm image came from cache - no upload needed")
+    elif static_image.is_new:
+        logger.info("First no-storm run in current calm period - uploading static image once")
         upload_files_to_slack([static_image], slack_token_str, upload_channel_str)
         upload_files_to_discord([static_image], discord_webhook_url_str)
-    else:
-        logger.info("Static image unchanged - no upload needed")
 
-    # Once the "no active storms" image has been posted (or confirmed unchanged),
-    # remove it from disk so the next run always starts from a clean slate and
-    # will post the latest "no active storms" outlook again.
-    delete_images(image_file_path_str)
+        # After first no-storm upload, clear storm artifacts and reset static GIF loop.
+        delete_storm_images(image_file_path_str)
+        delete_no_storm_gif(image_file_path_str)
+        mark_no_storm_uploaded(image_file_path_str)
+    else:
+        logger.info("No-storm image unchanged - no upload needed")
 
     logger.info("Processing complete - handled static image only")
 

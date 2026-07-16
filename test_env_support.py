@@ -50,7 +50,6 @@ THRESHOLD=0.005
         # Mock the main functionality to avoid network calls and file operations
         with patch('weather.fetch_xml_feed') as mock_fetch, \
              patch('weather.delete_storm_images') as mock_delete, \
-             patch('weather.delete_images') as mock_delete_images, \
              patch('weather.process_single_image') as mock_process, \
              patch('weather.generate_rss_feed') as mock_rss, \
              patch('weather.upload_files_to_slack') as mock_slack, \
@@ -71,11 +70,10 @@ THRESHOLD=0.005
             # Verify that setup_logging was called with the log file from .env
             mock_logging.assert_called_once_with('test.log')
             
-            # Verify that delete_storm_images was called with the image path from .env
-            mock_delete.assert_called_once_with('test-images/')
+            # No-storm cleanup now happens only when we actually upload the no-storm image
+            mock_delete.assert_not_called()
             
-            # Verify that delete_images was called to clean up after processing
-            mock_delete_images.assert_called_once_with('test-images/')
+
             
     finally:
         # Clean up
@@ -167,7 +165,6 @@ THRESHOLD=0.005
         # Mock the main functionality to avoid network calls and file operations
         with patch('weather.fetch_xml_feed') as mock_fetch, \
              patch('weather.delete_storm_images') as mock_delete, \
-             patch('weather.delete_images') as mock_delete_images, \
              patch('weather.process_single_image') as mock_process, \
              patch('weather.generate_rss_feed') as mock_rss, \
              patch('weather.upload_files_to_slack') as mock_slack, \
@@ -196,9 +193,8 @@ THRESHOLD=0.005
             
             # Should use the log file from .env since not specified in CLI
             mock_logging.assert_called_once_with('env.log')
-            # Should use CLI args for required params
-            mock_delete.assert_called_once_with('cli-images/')
-            mock_delete_images.assert_called_once_with('cli-images/')
+            # No-storm cleanup now happens only when we actually upload the no-storm image
+            mock_delete.assert_not_called()
             
     finally:
         # Clean up
