@@ -5,3 +5,4 @@ img
 *.xml
 __pycache__
 .coverage
+.env.test
