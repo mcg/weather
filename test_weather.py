@@ -9,9 +9,10 @@ from bs4 import BeautifulSoup
 # Import the functions we want to test
 from weather import (
     fetch_xml_feed, extract_storm_info, find_speg_model, find_cyclones_in_feed,
-    images_are_different, update_gif, process_single_image, fetch_all_weather_images,
-    generate_rss_feed, upload_files_to_slack, upload_files_to_discord, delete_images,
-    delete_storm_images, WeatherImage, setup_logging
+    has_formation_chance, images_are_different, update_gif, process_single_image,
+    fetch_all_weather_images, generate_rss_feed, upload_files_to_slack,
+    upload_files_to_discord, delete_images, delete_storm_images, WeatherImage,
+    setup_logging
 )
 
 
@@ -62,6 +63,44 @@ class TestWeatherFunctions(unittest.TestCase):
         
         self.assertEqual(no_storms, 1)  # Expecting count of storms (1 when there are storms)
         self.assertIsInstance(soup, BeautifulSoup)
+
+    def test_has_formation_chance_true(self):
+        """Test detecting a formation chance mentioned in the outlook."""
+        xml_content = '''<?xml version="1.0" encoding="UTF-8"?>
+        <rss><channel>
+        <item>
+            <title>Atlantic Tropical Weather Outlook</title>
+            <description><![CDATA[A tropical wave is expected to move off the west coast of Africa.<br />
+            * Formation chance through 48 hours...low...near 0 percent.<br />
+            * Formation chance through 7 days...low...20 percent.]]></description>
+        </item>
+        </channel></rss>'''
+        soup = BeautifulSoup(xml_content, 'xml')
+
+        self.assertTrue(has_formation_chance(soup))
+
+    def test_has_formation_chance_false(self):
+        """Test no formation chance when the outlook has none mentioned."""
+        xml_content = '''<?xml version="1.0" encoding="UTF-8"?>
+        <rss><channel>
+        <item>
+            <title>Atlantic Tropical Weather Outlook</title>
+            <description><![CDATA[Tropical cyclone formation is not expected during the next 7 days.]]></description>
+        </item>
+        </channel></rss>'''
+        soup = BeautifulSoup(xml_content, 'xml')
+
+        self.assertFalse(has_formation_chance(soup))
+
+    def test_has_formation_chance_no_outlook_item(self):
+        """Test no formation chance when there's no outlook item at all."""
+        xml_content = '''<?xml version="1.0" encoding="UTF-8"?>
+        <rss><channel>
+        <item><title>Hurricane Maria Graphics</title></item>
+        </channel></rss>'''
+        soup = BeautifulSoup(xml_content, 'xml')
+
+        self.assertFalse(has_formation_chance(soup))
     
     def test_extract_storm_info_hurricane(self):
         """Test extracting hurricane information from title element."""
