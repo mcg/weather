@@ -73,6 +73,8 @@ SPEG_PATTERN = re.compile(r".*Summary for (Tropical\sStorm|Hurricane).*", re.IGN
 STORM_NAME_PATTERN = re.compile(
     r"(Tropical\sStorm|Tropical\sDepression|Hurricane) (.*?) Graphics", re.IGNORECASE
 )
+OUTLOOK_TITLE_PATTERN = re.compile(r"Tropical Weather Outlook", re.IGNORECASE)
+FORMATION_CHANCE_PATTERN = re.compile(r"Formation chance", re.IGNORECASE)
 
 
 def setup_logging(log_file_path: str | None = None) -> None:
@@ -221,6 +223,31 @@ def find_cyclones_in_feed(soup: BeautifulSoup) -> list[CycloneInfo]:
 
     logger.info(f"Found {len(cyclones)} cyclones")
     return cyclones
+
+
+def has_formation_chance(soup: BeautifulSoup) -> bool:
+    """Check whether the Tropical Weather Outlook mentions a formation chance for development."""
+    outlook_title = soup.find("title", string=OUTLOOK_TITLE_PATTERN)
+    if outlook_title is None:
+        return False
+
+    find_next = getattr(outlook_title, "find_next", None)
+    if not callable(find_next):
+        return False
+
+    description_tag = find_next("description")
+    if description_tag is None:
+        return False
+
+    description_text = str(getattr(description_tag, "text", ""))
+    found = bool(FORMATION_CHANCE_PATTERN.search(description_text))
+
+    if found:
+        logger.info("Formation chance detected in Tropical Weather Outlook")
+    else:
+        logger.info("No formation chance mentioned in Tropical Weather Outlook")
+
+    return found
 
 
 def images_are_different(
@@ -665,7 +692,16 @@ def main() -> None:
         logger.info(f"Processing complete - handled {len(all_images)} total images")
         return
 
-    logger.info("No tropical cyclones expected - checking static image only")
+    if not has_formation_chance(soup):
+        logger.info(
+            "No named storms and no formation chance - deleting all image files"
+        )
+        delete_images(image_file_path_str)
+        return
+
+    logger.info(
+        "No named storms, but formation chance detected - checking static image only"
+    )
 
     delete_storm_images(image_file_path_str)
 
