@@ -576,7 +576,7 @@ def process_and_publish_static_image(
     if static_image.is_new:
         logger.info("Static image has been updated - uploading")
         upload_files_to_slack([static_image], slack_token, upload_channel)
-        # upload_files_to_discord([static_image], discord_webhook_url)
+        upload_files_to_discord([static_image], discord_webhook_url)
     else:
         logger.info("Static image unchanged - no upload needed")
 
