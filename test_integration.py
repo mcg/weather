@@ -28,13 +28,15 @@ class TestWeatherIntegration(unittest.TestCase):
     @patch('weather.generate_rss_feed')
     @patch('weather.process_single_image')
     @patch('weather.delete_storm_images')
+    @patch('weather.has_formation_chance')
     @patch('weather.fetch_xml_feed')
     @patch('sys.argv')
     def test_main_no_storms_with_updated_static_image(self, mock_argv, mock_fetch_xml, 
+                                                     mock_has_formation_chance,
                                                      mock_delete_storm_images, mock_process_image,
                                                      mock_generate_rss, mock_upload_slack, 
                                                      mock_upload_discord):
-        """Test main function when no storms are expected and static image is updated."""
+        """Test main function when no named storms exist but a formation chance is present."""
         from weather import WeatherImage
         
         # Mock command line arguments
@@ -49,8 +51,9 @@ class TestWeatherIntegration(unittest.TestCase):
         ][i]
         mock_argv.__len__ = lambda s: 7
         
-        # Mock no storms scenario
+        # Mock no named storms, but a formation chance is present
         mock_fetch_xml.return_value = (0, Mock())  # no_storms=0 (count)
+        mock_has_formation_chance.return_value = True
         
         # Mock updated static image
         static_image = WeatherImage('two_atl_7d0', 'path.png', 'path.gif', 'url', True, 'static')
@@ -70,13 +73,15 @@ class TestWeatherIntegration(unittest.TestCase):
     @patch('weather.generate_rss_feed')
     @patch('weather.process_single_image')
     @patch('weather.delete_storm_images')
+    @patch('weather.has_formation_chance')
     @patch('weather.fetch_xml_feed')
     @patch('sys.argv')
     def test_main_no_storms_with_unchanged_static_image(self, mock_argv, mock_fetch_xml, 
+                                                       mock_has_formation_chance,
                                                        mock_delete_storm_images, mock_process_image,
                                                        mock_generate_rss, mock_upload_slack, 
                                                        mock_upload_discord):
-        """Test main function when no storms are expected and static image is unchanged."""
+        """Test main function when no named storms exist, a formation chance is present, and the static image is unchanged."""
         from weather import WeatherImage
         
         # Mock command line arguments
@@ -91,8 +96,9 @@ class TestWeatherIntegration(unittest.TestCase):
         ][i]
         mock_argv.__len__ = lambda s: 7
         
-        # Mock no storms scenario
+        # Mock no named storms, but a formation chance is present
         mock_fetch_xml.return_value = (0, Mock())  # no_storms=0 (count)
+        mock_has_formation_chance.return_value = True
         
         # Mock unchanged static image
         static_image = WeatherImage('two_atl_7d0', 'path.png', 'path.gif', 'url', False, 'static')
@@ -198,10 +204,12 @@ class TestWeatherIntegration(unittest.TestCase):
     @patch('weather.generate_rss_feed')
     @patch('weather.process_single_image')
     @patch('weather.delete_storm_images')
+    @patch('weather.has_formation_chance')
     @patch('weather.setup_logging')
     @patch('weather.fetch_xml_feed')
     @patch('sys.argv')
     def test_main_with_log_file_argument(self, mock_argv, mock_fetch_xml, mock_setup_logging,
+                                        mock_has_formation_chance,
                                         mock_delete_storm_images, mock_process_image,
                                         mock_generate_rss, mock_upload_slack, mock_upload_discord):
         """Test main function with log file argument."""
@@ -224,6 +232,7 @@ class TestWeatherIntegration(unittest.TestCase):
         mock_argv.__len__ = lambda s: 9
         
         mock_fetch_xml.return_value = (0, Mock())  # no_storms=0 (count)
+        mock_has_formation_chance.return_value = True
         
         # Mock unchanged static image to avoid upload calls
         static_image = WeatherImage('two_atl_7d0', 'path.png', 'path.gif', 'url', False, 'static')
@@ -273,6 +282,50 @@ class TestWeatherIntegration(unittest.TestCase):
             args, kwargs = mock_fetch_images.call_args
             if len(args) >= 3:
                 self.assertEqual(args[2], 0.005)
+
+    @patch('weather.upload_files_to_discord')
+    @patch('weather.upload_files_to_slack')
+    @patch('weather.generate_rss_feed')
+    @patch('weather.process_single_image')
+    @patch('weather.delete_images')
+    @patch('weather.delete_storm_images')
+    @patch('weather.has_formation_chance')
+    @patch('weather.fetch_xml_feed')
+    @patch('sys.argv')
+    def test_main_no_storms_no_formation_chance_deletes_all_images(
+        self, mock_argv, mock_fetch_xml, mock_has_formation_chance,
+        mock_delete_storm_images, mock_delete_images, mock_process_image,
+        mock_generate_rss, mock_upload_slack, mock_upload_discord
+    ):
+        """Test main function deletes all images when there are no named storms and no formation chance."""
+        # Mock command line arguments
+        mock_argv.__getitem__ = lambda s, i: [
+            'weather.py',
+            self.rss_file,
+            self.image_dir,
+            'slack_webhook_url',
+            'slack_token',
+            'upload_channel',
+            'discord_webhook_url'
+        ][i]
+        mock_argv.__len__ = lambda s: 7
+
+        # No named storms and no formation chance
+        mock_fetch_xml.return_value = (0, Mock())
+        mock_has_formation_chance.return_value = False
+
+        main()
+
+        mock_fetch_xml.assert_called_once()
+        mock_has_formation_chance.assert_called_once()
+        mock_delete_images.assert_called_once_with(self.image_dir)
+
+        # Should not fall through to the storm-images-only cleanup or static image processing
+        mock_delete_storm_images.assert_not_called()
+        mock_process_image.assert_not_called()
+        mock_generate_rss.assert_not_called()
+        mock_upload_slack.assert_not_called()
+        mock_upload_discord.assert_not_called()
 
 
 if __name__ == '__main__':

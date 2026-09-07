@@ -49,6 +49,7 @@ THRESHOLD=0.005
     try:
         # Mock the main functionality to avoid network calls and file operations
         with patch('weather.fetch_xml_feed') as mock_fetch, \
+             patch('weather.has_formation_chance') as mock_formation_chance, \
              patch('weather.delete_storm_images') as mock_delete, \
              patch('weather.process_single_image') as mock_process, \
              patch('weather.generate_rss_feed') as mock_rss, \
@@ -58,6 +59,7 @@ THRESHOLD=0.005
              patch('sys.argv', ['weather.py', '--env-file', env_file_path]):
             
             mock_fetch.return_value = (0, None)  # No storms (count = 0)
+            mock_formation_chance.return_value = True  # Formation chance present
             
             # Mock the static image processing
             mock_static_image = MagicMock()
@@ -162,6 +164,7 @@ THRESHOLD=0.005
     try:
         # Mock the main functionality to avoid network calls and file operations
         with patch('weather.fetch_xml_feed') as mock_fetch, \
+             patch('weather.has_formation_chance') as mock_formation_chance, \
              patch('weather.delete_storm_images') as mock_delete, \
              patch('weather.process_single_image') as mock_process, \
              patch('weather.generate_rss_feed') as mock_rss, \
@@ -181,6 +184,7 @@ THRESHOLD=0.005
              ]):
             
             mock_fetch.return_value = (0, None)  # No storms (count = 0)
+            mock_formation_chance.return_value = True  # Formation chance present
             
             # Mock the static image processing
             mock_static_image = MagicMock()
