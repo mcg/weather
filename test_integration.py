@@ -292,12 +292,15 @@ class TestWeatherIntegration(unittest.TestCase):
     @patch('weather.has_formation_chance')
     @patch('weather.fetch_xml_feed')
     @patch('sys.argv')
-    def test_main_no_storms_no_formation_chance_deletes_all_images(
+    def test_main_no_storms_no_formation_chance_posts_final_update_then_deletes_all_images(
         self, mock_argv, mock_fetch_xml, mock_has_formation_chance,
         mock_delete_storm_images, mock_delete_images, mock_process_image,
         mock_generate_rss, mock_upload_slack, mock_upload_discord
     ):
-        """Test main function deletes all images when there are no named storms and no formation chance."""
+        """Test main function posts one final outlook update before deleting all images
+        when there are no named storms and no formation chance."""
+        from weather import WeatherImage
+
         # Mock command line arguments
         mock_argv.__getitem__ = lambda s, i: [
             'weather.py',
@@ -314,18 +317,119 @@ class TestWeatherIntegration(unittest.TestCase):
         mock_fetch_xml.return_value = (0, Mock())
         mock_has_formation_chance.return_value = False
 
+        # Simulate images left over from prior storm/formation-chance tracking
+        with open(os.path.join(self.image_dir, 'two_atl_7d0.png'), 'wb') as f:
+            f.write(b'old-static-image')
+
+        # The final outlook image is now empty/quiet, but still changed from the last post
+        static_image = WeatherImage('two_atl_7d0', 'path.png', 'path.gif', 'url', True, 'static')
+        mock_process_image.return_value = static_image
+
         main()
 
         mock_fetch_xml.assert_called_once()
         mock_has_formation_chance.assert_called_once()
+
+        # Storm-specific images are cleared, then the static outlook is fetched, published,
+        # and uploaded one last time before wiping the filesystem clean.
+        mock_delete_storm_images.assert_called_once_with(self.image_dir)
+        mock_process_image.assert_called_once()
+        mock_generate_rss.assert_called_once_with(static_image, self.rss_file)
+        mock_upload_slack.assert_called_once_with([static_image], 'slack_token', 'upload_channel')
+        mock_upload_discord.assert_called_once_with([static_image], 'discord_webhook_url')
         mock_delete_images.assert_called_once_with(self.image_dir)
 
-        # Should not fall through to the storm-images-only cleanup or static image processing
+    @patch('weather.upload_files_to_discord')
+    @patch('weather.upload_files_to_slack')
+    @patch('weather.generate_rss_feed')
+    @patch('weather.process_single_image')
+    @patch('weather.delete_images')
+    @patch('weather.delete_storm_images')
+    @patch('weather.has_formation_chance')
+    @patch('weather.fetch_xml_feed')
+    @patch('sys.argv')
+    def test_main_no_storms_no_formation_chance_unchanged_image_skips_upload(
+        self, mock_argv, mock_fetch_xml, mock_has_formation_chance,
+        mock_delete_storm_images, mock_delete_images, mock_process_image,
+        mock_generate_rss, mock_upload_slack, mock_upload_discord
+    ):
+        """Test main function does not re-upload if the final outlook image is unchanged,
+        but still deletes all images."""
+        from weather import WeatherImage
+
+        # Mock command line arguments
+        mock_argv.__getitem__ = lambda s, i: [
+            'weather.py',
+            self.rss_file,
+            self.image_dir,
+            'slack_webhook_url',
+            'slack_token',
+            'upload_channel',
+            'discord_webhook_url'
+        ][i]
+        mock_argv.__len__ = lambda s: 7
+
+        mock_fetch_xml.return_value = (0, Mock())
+        mock_has_formation_chance.return_value = False
+
+        # Simulate images left over from prior storm/formation-chance tracking
+        with open(os.path.join(self.image_dir, 'two_atl_7d0.png'), 'wb') as f:
+            f.write(b'old-static-image')
+
+        static_image = WeatherImage('two_atl_7d0', 'path.png', 'path.gif', 'url', False, 'static')
+        mock_process_image.return_value = static_image
+
+        main()
+
+        mock_delete_storm_images.assert_called_once_with(self.image_dir)
+        mock_process_image.assert_called_once()
+        mock_generate_rss.assert_called_once_with(static_image, self.rss_file)
+        mock_upload_slack.assert_not_called()
+        mock_upload_discord.assert_not_called()
+        mock_delete_images.assert_called_once_with(self.image_dir)
+
+    @patch('weather.upload_files_to_discord')
+    @patch('weather.upload_files_to_slack')
+    @patch('weather.generate_rss_feed')
+    @patch('weather.process_single_image')
+    @patch('weather.delete_images')
+    @patch('weather.delete_storm_images')
+    @patch('weather.has_formation_chance')
+    @patch('weather.fetch_xml_feed')
+    @patch('sys.argv')
+    def test_main_no_storms_no_formation_chance_already_clear_does_nothing(
+        self, mock_argv, mock_fetch_xml, mock_has_formation_chance,
+        mock_delete_storm_images, mock_delete_images, mock_process_image,
+        mock_generate_rss, mock_upload_slack, mock_upload_discord
+    ):
+        """Test main function does not re-post or touch the filesystem when there are
+        no named storms, no formation chance, and the image directory is already empty
+        (i.e. the final update was already posted on a previous run)."""
+        # Mock command line arguments
+        mock_argv.__getitem__ = lambda s, i: [
+            'weather.py',
+            self.rss_file,
+            self.image_dir,
+            'slack_webhook_url',
+            'slack_token',
+            'upload_channel',
+            'discord_webhook_url'
+        ][i]
+        mock_argv.__len__ = lambda s: 7
+
+        mock_fetch_xml.return_value = (0, Mock())
+        mock_has_formation_chance.return_value = False
+
+        # self.image_dir is already empty (no leftover images from setUp)
+
+        main()
+
         mock_delete_storm_images.assert_not_called()
         mock_process_image.assert_not_called()
         mock_generate_rss.assert_not_called()
         mock_upload_slack.assert_not_called()
         mock_upload_discord.assert_not_called()
+        mock_delete_images.assert_not_called()
 
 
 if __name__ == '__main__':

@@ -441,6 +441,30 @@ class TestWeatherFunctions(unittest.TestCase):
         self.assertFalse(os.path.exists(gif_file))
         self.assertTrue(os.path.exists(txt_file))
     
+    def test_has_image_files_true(self):
+        """Test has_image_files returns True when PNG/GIF files exist."""
+        from weather import has_image_files
+
+        png_file = os.path.join(self.temp_dir, 'test.png')
+        with open(png_file, 'w') as f:
+            f.write('fake png')
+
+        self.assertTrue(has_image_files(self.temp_dir))
+
+    def test_has_image_files_false(self):
+        """Test has_image_files returns False when no PNG/GIF files exist."""
+        from weather import has_image_files
+
+        empty_dir = tempfile.mkdtemp()
+        try:
+            txt_file = os.path.join(empty_dir, 'test.txt')
+            with open(txt_file, 'w') as f:
+                f.write('fake txt')
+
+            self.assertFalse(has_image_files(empty_dir))
+        finally:
+            shutil.rmtree(empty_dir)
+
     def test_delete_storm_images(self):
         """Test deleting storm images while preserving static images."""
         # Create test files

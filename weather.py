@@ -549,6 +549,40 @@ def delete_storm_images(image_dir: str) -> None:
     logger.info(f"Deleted {count} storm image files")
 
 
+def has_image_files(image_dir: str) -> bool:
+    """Check whether any tracked PNG or GIF files remain in the directory."""
+    return any(
+        filename.endswith((".png", ".gif")) for filename in os.listdir(image_dir)
+    )
+
+
+def process_and_publish_static_image(
+    image_file_path: str,
+    rss_file_path: str,
+    threshold: float,
+    slack_token: str,
+    upload_channel: str,
+    discord_webhook_url: str,
+) -> WeatherImage:
+    """Fetch the static outlook image, update the RSS feed, and upload it if it changed."""
+    static_url = "https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png"
+    static_image = process_single_image(
+        static_url, "two_atl_7d0", image_file_path, threshold
+    )
+    static_image.image_type = "static"
+
+    generate_rss_feed(static_image, rss_file_path)
+
+    if static_image.is_new:
+        logger.info("Static image has been updated - uploading")
+        upload_files_to_slack([static_image], slack_token, upload_channel)
+        upload_files_to_discord([static_image], discord_webhook_url)
+    else:
+        logger.info("Static image unchanged - no upload needed")
+
+    return static_image
+
+
 def require_str(value: str | None, name: str) -> str:
     """Narrow a validated optional string to a string for type checkers."""
     if value is None or value == "":
@@ -693,9 +727,27 @@ def main() -> None:
         return
 
     if not has_formation_chance(soup):
+        if not has_image_files(image_file_path_str):
+            logger.info(
+                "No named storms, no formation chance, and no images remaining - nothing to do"
+            )
+            return
+
         logger.info(
-            "No named storms and no formation chance - deleting all image files"
+            "No named storms and no formation chance - posting final outlook update before clearing images"
         )
+        delete_storm_images(image_file_path_str)
+
+        _ = process_and_publish_static_image(
+            image_file_path_str,
+            rss_file_path_str,
+            threshold,
+            slack_token_str,
+            upload_channel_str,
+            discord_webhook_url_str,
+        )
+
+        logger.info("Deleting all image files")
         delete_images(image_file_path_str)
         return
 
@@ -705,20 +757,14 @@ def main() -> None:
 
     delete_storm_images(image_file_path_str)
 
-    static_url = "https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png"
-    static_image = process_single_image(
-        static_url, "two_atl_7d0", image_file_path_str, threshold
+    _ = process_and_publish_static_image(
+        image_file_path_str,
+        rss_file_path_str,
+        threshold,
+        slack_token_str,
+        upload_channel_str,
+        discord_webhook_url_str,
     )
-    static_image.image_type = "static"
-
-    generate_rss_feed(static_image, rss_file_path_str)
-
-    if static_image.is_new:
-        logger.info("Static image has been updated - uploading")
-        upload_files_to_slack([static_image], slack_token_str, upload_channel_str)
-        upload_files_to_discord([static_image], discord_webhook_url_str)
-    else:
-        logger.info("Static image unchanged - no upload needed")
 
     logger.info("Processing complete - handled static image only")
 
