@@ -229,6 +229,20 @@ class TestWeatherFunctions(unittest.TestCase):
         
         self.assertTrue(result)
     
+    def test_images_are_different_zero_threshold_detects_tiny_change(self):
+        """A tiny change is ignored at the default threshold but detected at 0.0."""
+        img1_path = os.path.join(self.temp_dir, 'img1.png')
+        img2_path = os.path.join(self.temp_dir, 'img2.png')
+
+        img1 = Image.new('RGB', (100, 100), color='white')
+        img2 = Image.new('RGB', (100, 100), color='white')
+        img2.putpixel((0, 0), (255, 0, 0))
+        img1.save(img1_path)
+        img2.save(img2_path)
+
+        self.assertFalse(images_are_different(img1_path, img2_path))
+        self.assertTrue(images_are_different(img1_path, img2_path, threshold=0.0))
+
     @patch('weather.ImageChops.difference')
     def test_images_are_different_with_none_pixels(self, mock_difference):
         """Test image comparison when pixel data contains None values."""
