@@ -76,6 +76,12 @@ STORM_NAME_PATTERN = re.compile(
 OUTLOOK_TITLE_PATTERN = re.compile(r"Tropical Weather Outlook", re.IGNORECASE)
 FORMATION_CHANCE_PATTERN = re.compile(r"Formation chance", re.IGNORECASE)
 
+# The final "no storms, no formation chance" outlook is posted exactly once before
+# all images are deleted. Any pixel difference must count as new, otherwise a small
+# change (e.g. a tiny formation area disappearing) falls under the normal threshold
+# and the last image is never posted.
+FINAL_UPDATE_THRESHOLD = 0.0
+
 
 def setup_logging(log_file_path: str | None = None) -> None:
     """Set up logging configuration."""
@@ -741,7 +747,7 @@ def main() -> None:
         _ = process_and_publish_static_image(
             image_file_path_str,
             rss_file_path_str,
-            threshold,
+            FINAL_UPDATE_THRESHOLD,
             slack_token_str,
             upload_channel_str,
             discord_webhook_url_str,

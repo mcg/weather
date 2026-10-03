@@ -334,6 +334,8 @@ class TestWeatherIntegration(unittest.TestCase):
         # and uploaded one last time before wiping the filesystem clean.
         mock_delete_storm_images.assert_called_once_with(self.image_dir)
         mock_process_image.assert_called_once()
+        # The final update must use a zero threshold so any change is treated as new
+        self.assertEqual(mock_process_image.call_args.args[3], 0.0)
         mock_generate_rss.assert_called_once_with(static_image, self.rss_file)
         mock_upload_slack.assert_called_once_with([static_image], 'slack_token', 'upload_channel')
         mock_upload_discord.assert_called_once_with([static_image], 'discord_webhook_url')
