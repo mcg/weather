@@ -1,9 +1,10 @@
+import argparse
 import pytest
 import tempfile
 import os
 import sys
 from unittest.mock import patch, MagicMock
-from weather import main
+from weather import PIXEL_TOLERANCE, main, parse_pixel_tolerance
 
 
 @pytest.fixture(autouse=True)
@@ -11,7 +12,8 @@ def clean_env():
     """Clean up environment variables before and after each test."""
     env_vars_to_clean = [
         'RSS_FILE_PATH', 'IMAGE_FILE_PATH', 'SLACK_WEBHOOK_URL', 
-        'SLACK_TOKEN', 'UPLOAD_CHANNEL', 'DISCORD_WEBHOOK_URL', 'LOG_FILE', 'THRESHOLD'
+        'SLACK_TOKEN', 'UPLOAD_CHANNEL', 'DISCORD_WEBHOOK_URL', 'LOG_FILE', 'THRESHOLD',
+        'PIXEL_TOLERANCE'
     ]
     
     # Store original values
@@ -246,6 +248,8 @@ THRESHOLD=0.005
             mock_new_image = MagicMock()
             mock_new_image.image_type = 'storm'
             mock_new_image.is_new = True
+            mock_new_image.previous_png = None
+            mock_new_image.previous_gif = None
             
             mock_fetch_images.return_value = [mock_static_image, mock_new_image]
             
@@ -344,3 +348,104 @@ def test_threshold_command_line_override():
         # Clean up environment
         if 'THRESHOLD' in os.environ:
             del os.environ['THRESHOLD']
+
+
+# --- PIXEL_TOLERANCE -------------------------------------------------------
+
+REQUIRED_CLI = [
+    'test-feed.xml', 'test-images/', 'slack_webhook', 'slack_token', 'channel', 'discord_webhook',
+]
+
+
+def run_main_with_storms(extra_argv):
+    """Run main() on the storms path and return the positional args fetch_all_weather_images got."""
+    with patch('weather.fetch_xml_feed') as mock_fetch, \
+         patch('weather.fetch_all_weather_images') as mock_fetch_images, \
+         patch('weather.generate_rss_feed'), \
+         patch('weather.upload_files_to_slack'), \
+         patch('weather.upload_files_to_discord'), \
+         patch('weather.setup_logging'), \
+         patch('sys.argv', ['weather.py', *REQUIRED_CLI, *extra_argv]):
+        mock_fetch.return_value = (1, MagicMock())
+        static_image = MagicMock()
+        static_image.image_type = 'static'
+        static_image.is_new = False
+        mock_fetch_images.return_value = [static_image]
+
+        main()
+
+        mock_fetch_images.assert_called_once()
+        return mock_fetch_images.call_args[0]
+
+
+@pytest.mark.parametrize('raw, expected', [
+    (None, PIXEL_TOLERANCE),
+    ('0', 0),
+    ('8', 8),
+    ('255', 255),
+    (5, 5),
+])
+def test_parse_pixel_tolerance_valid(raw, expected):
+    assert parse_pixel_tolerance(raw, argparse.ArgumentParser()) == expected
+
+
+@pytest.mark.parametrize('raw', ['abc', '', '1.5', '-1', '256', -1, 300])
+def test_parse_pixel_tolerance_invalid(raw):
+    with pytest.raises(SystemExit):
+        parse_pixel_tolerance(raw, argparse.ArgumentParser())
+
+
+def test_pixel_tolerance_defaults_when_unset():
+    args = run_main_with_storms([])
+    assert args[3] == PIXEL_TOLERANCE
+
+
+def test_pixel_tolerance_from_env():
+    with patch.dict(os.environ, {'PIXEL_TOLERANCE': '10'}):
+        args = run_main_with_storms([])
+    assert args[3] == 10
+
+
+def test_pixel_tolerance_from_env_file():
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.env', delete=False) as f:
+        f.write('PIXEL_TOLERANCE=12\n')
+        env_file_path = f.name
+    try:
+        args = run_main_with_storms(['--env-file', env_file_path])
+    finally:
+        os.unlink(env_file_path)
+        os.environ.pop('PIXEL_TOLERANCE', None)
+    assert args[3] == 12
+
+
+def test_pixel_tolerance_cli_overrides_env():
+    with patch.dict(os.environ, {'PIXEL_TOLERANCE': '10'}):
+        args = run_main_with_storms(['--pixel-tolerance', '4'])
+    assert args[3] == 4
+
+
+def test_pixel_tolerance_invalid_env_value_exits():
+    with patch.dict(os.environ, {'PIXEL_TOLERANCE': 'lots'}):
+        with pytest.raises(SystemExit):
+            run_main_with_storms([])
+
+
+def test_pixel_tolerance_reaches_image_comparison_on_static_only_path():
+    """The no-storms/formation-chance path forwards the configured tolerance too."""
+    with patch('weather.fetch_xml_feed') as mock_fetch, \
+         patch('weather.has_formation_chance', return_value=True), \
+         patch('weather.delete_storm_images'), \
+         patch('weather.process_single_image') as mock_process, \
+         patch('weather.generate_rss_feed'), \
+         patch('weather.upload_files_to_slack'), \
+         patch('weather.upload_files_to_discord'), \
+         patch('weather.setup_logging'), \
+         patch('sys.argv', ['weather.py', *REQUIRED_CLI, '--pixel-tolerance', '7']):
+        mock_fetch.return_value = (0, MagicMock())
+        static_image = MagicMock()
+        static_image.is_new = False
+        mock_process.return_value = static_image
+
+        main()
+
+        assert mock_process.call_args.kwargs['pixel_tolerance'] == 7

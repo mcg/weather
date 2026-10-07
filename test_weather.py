@@ -243,6 +243,40 @@ class TestWeatherFunctions(unittest.TestCase):
         self.assertFalse(images_are_different(img1_path, img2_path))
         self.assertTrue(images_are_different(img1_path, img2_path, threshold=0.0))
 
+    def _save_noisy_pair(self, noise_pixels, marker_pixels):
+        """Save a base image and a copy with faint noise plus an optional strong marker."""
+        base_path = os.path.join(self.temp_dir, 'base.png')
+        changed_path = os.path.join(self.temp_dir, 'changed.png')
+        base = Image.new('RGB', (100, 100), color=(100, 150, 200))
+        changed = base.copy()
+        for i in range(noise_pixels):
+            changed.putpixel((i % 100, i // 100), (103, 153, 203))  # +3 gray levels
+        for i in range(marker_pixels):
+            changed.putpixel((i % 100, 99 - i // 100), (255, 0, 0))
+        base.save(base_path)
+        changed.save(changed_path)
+        return base_path, changed_path
+
+    def test_images_are_different_ignores_faint_noise(self):
+        """Faint rendering noise over 5% of pixels must not count as a change."""
+        base_path, noisy_path = self._save_noisy_pair(noise_pixels=500, marker_pixels=0)
+
+        self.assertFalse(images_are_different(noisy_path, base_path, threshold=0.001))
+
+    def test_images_are_different_detects_small_real_change_despite_noise(self):
+        """A small real change (0.4% of pixels) is found even with 5% faint noise."""
+        base_path, changed_path = self._save_noisy_pair(noise_pixels=500, marker_pixels=40)
+
+        self.assertTrue(images_are_different(changed_path, base_path, threshold=0.001))
+
+    def test_images_are_different_zero_tolerance_counts_noise(self):
+        """With pixel_tolerance=0 any pixel difference counts, as before."""
+        base_path, noisy_path = self._save_noisy_pair(noise_pixels=500, marker_pixels=0)
+
+        self.assertTrue(
+            images_are_different(noisy_path, base_path, threshold=0.001, pixel_tolerance=0)
+        )
+
     @patch('weather.ImageChops.difference')
     def test_images_are_different_with_none_pixels(self, mock_difference):
         """Test image comparison when pixel data contains None values."""
@@ -295,10 +329,11 @@ class TestWeatherFunctions(unittest.TestCase):
         self.assertTrue(os.path.exists(gif_path))
     
     @patch('weather.requests.get')
-    def test_process_single_image_from_cache(self, mock_get):
-        """Test processing a single image from cache."""
+    def test_process_single_image_from_cache_unchanged(self, mock_get):
+        """A cached body identical to the local file is reported as unchanged."""
         mock_response = Mock()
-        mock_response.content = b'fake_image_data'
+        with open(self.test_image_path, 'rb') as f:
+            mock_response.content = f.read()
         mock_response.from_cache = True
         mock_get.return_value = mock_response
         
@@ -311,7 +346,7 @@ class TestWeatherFunctions(unittest.TestCase):
         self.assertIsInstance(result, WeatherImage)
         self.assertEqual(result.name, 'test_image')
         self.assertFalse(result.is_new)
-        self.assertEqual(result.image_type, 'cached')
+        self.assertEqual(result.image_type, 'processed')
     
     @patch('weather.update_gif')
     @patch('weather.images_are_different')
@@ -336,6 +371,31 @@ class TestWeatherFunctions(unittest.TestCase):
         self.assertEqual(result.image_type, 'processed')
         mock_update_gif.assert_called_once()
     
+    @patch('weather.update_gif')
+    @patch('weather.images_are_different')
+    @patch('weather.requests.get')
+    def test_process_single_image_passes_tolerance_to_comparison(
+        self, mock_get, mock_images_diff, mock_update_gif
+    ):
+        """The configured threshold and pixel tolerance reach images_are_different."""
+        mock_response = Mock()
+        mock_response.content = b'fake_image_data'
+        mock_response.from_cache = False
+        mock_get.return_value = mock_response
+        mock_images_diff.return_value = False
+
+        process_single_image(
+            'http://example.com/test.png',
+            'test_image',
+            self.temp_dir,
+            threshold=0.002,
+            pixel_tolerance=5,
+        )
+
+        _, _, threshold, pixel_tolerance = mock_images_diff.call_args[0]
+        self.assertEqual(threshold, 0.002)
+        self.assertEqual(pixel_tolerance, 5)
+
     @patch('weather.find_cyclones_in_feed')
     @patch('weather.process_single_image')
     def test_fetch_all_weather_images(self, mock_process_image, mock_find_cyclones):
@@ -353,7 +413,7 @@ class TestWeatherFunctions(unittest.TestCase):
         ]
         
         # Mock process_single_image to return WeatherImage objects
-        def mock_process_side_effect(url, name, image_dir, threshold=0.001):
+        def mock_process_side_effect(url, name, image_dir, threshold=0.001, pixel_tolerance=16):
             if 'two_atl_7d0' in name:
                 img = WeatherImage(name, f'{image_dir}/{name}.png', f'{image_dir}/{name}.gif', url, True, 'static')
             elif 'cone' in name:
