@@ -79,8 +79,23 @@ SPEG_PATTERN = re.compile(r".*Summary for (Tropical\sStorm|Hurricane).*", re.IGN
 STORM_NAME_PATTERN = re.compile(
     r"(Tropical\sStorm|Tropical\sDepression|Hurricane) (.*?) Graphics", re.IGNORECASE
 )
+SUMMARY_TITLE_PATTERN = re.compile(
+    r"Summary for (Tropical\sStorm|Tropical\sDepression|Hurricane)", re.IGNORECASE
+)
+ATCF_PATTERN = re.compile(r"^(?P<basin>[A-Z]{2})(?P<number>\d{2})\d{4}$", re.IGNORECASE)
+# The advisory time (DDHHMM) is the last six digits of the summary guid
+# (summary-al092026-202610070852) or the file name in its link (.../070852.shtml).
+SUMMARY_GUID_STAMP_PATTERN = re.compile(r"-\d{6}(\d{6})$")
+SUMMARY_LINK_STAMP_PATTERN = re.compile(r"/(\d{6})\.shtml")
 OUTLOOK_TITLE_PATTERN = re.compile(r"Tropical Weather Outlook", re.IGNORECASE)
 FORMATION_CHANCE_PATTERN = re.compile(r"Formation chance", re.IGNORECASE)
+
+# NHC graphics directories use their own basin prefix (AL -> AT for the Atlantic).
+GRAPHICS_BASIN_PREFIXES = {"AL": "AT"}
+CONE_URL_TEMPLATE = (
+    "https://www.nhc.noaa.gov/storm_graphics/{graphics_id}/refresh/"
+    "{atcf}_5day_cone+png/{stamp}_5day_cone.png"
+)
 
 # The final "no storms, no formation chance" outlook is posted exactly once before
 # all images are deleted. Any pixel difference must count as new, otherwise a small
@@ -189,6 +204,82 @@ def find_speg_model(soup: BeautifulSoup, storm_name: str) -> str | None:
     return None
 
 
+def build_cone_url(atcf: str, stamp: str) -> str | None:
+    """Build the NHC 5-day cone image URL from an ATCF id and an advisory DDHHMM stamp.
+
+    For example ``AL092026`` and ``070852`` give
+    ``.../storm_graphics/AT09/refresh/AL092026_5day_cone+png/070852_5day_cone.png``.
+    """
+    match = ATCF_PATTERN.match(atcf.strip())
+    if not match:
+        return None
+
+    basin = match.group("basin").upper()
+    graphics_basin = GRAPHICS_BASIN_PREFIXES.get(basin)
+    if graphics_basin is None:
+        return None
+
+    return CONE_URL_TEMPLATE.format(
+        graphics_id=f"{graphics_basin}{match.group('number')}",
+        atcf=atcf.strip().upper(),
+        stamp=stamp,
+    )
+
+
+def find_cone_url(soup: BeautifulSoup, storm_name: str) -> str | None:
+    """Build the 5-day cone image URL for a storm from its "Summary for" feed item.
+
+    The summary item carries the ATCF id (``nhc:atcf``) and the advisory time
+    (in its guid and link), which together make up the cone image URL.
+    """
+    summary_titles = cast(
+        list[object], soup.find_all("title", string=SUMMARY_TITLE_PATTERN)
+    )
+
+    for summary_title in summary_titles:
+        title_text = str(getattr(summary_title, "text", ""))
+        if storm_name.lower() not in title_text.lower():
+            continue
+
+        find_parent = getattr(summary_title, "find_parent", None)
+        item = find_parent("item") if callable(find_parent) else None
+        if item is None:
+            continue
+
+        cyclone_tag = item.find("nhc:Cyclone")
+        if cyclone_tag is None:
+            continue
+
+        name_tag = cyclone_tag.find("nhc:name")
+        if name_tag is not None and str(name_tag.text).strip().lower() != storm_name.lower():
+            continue
+
+        atcf_tag = cyclone_tag.find("nhc:atcf")
+        if atcf_tag is None:
+            continue
+
+        stamp: str | None = None
+        link_tag = item.find("link")
+        if link_tag is not None:
+            link_match = SUMMARY_LINK_STAMP_PATTERN.search(str(link_tag.text).strip())
+            if link_match:
+                stamp = link_match.group(1)
+        if stamp is None:
+            guid_tag = item.find("guid")
+            if guid_tag is not None:
+                guid_match = SUMMARY_GUID_STAMP_PATTERN.search(str(guid_tag.text).strip())
+                if guid_match:
+                    stamp = guid_match.group(1)
+        if stamp is None:
+            continue
+
+        cone_url = build_cone_url(str(atcf_tag.text), stamp)
+        if cone_url:
+            return cone_url
+
+    return None
+
+
 def find_cyclones_in_feed(soup: BeautifulSoup) -> list[CycloneInfo]:
     """Find all cyclones in the XML feed."""
     logger.info("Searching for cyclones in feed")
@@ -213,18 +304,25 @@ def find_cyclones_in_feed(soup: BeautifulSoup) -> list[CycloneInfo]:
         description = str(getattr(description_tag, "text", ""))
         cdata_soup = BeautifulSoup(description, "html.parser")
 
-        # Find the 5-day cone image
+        # Find the 5-day cone image. Prefer an image embedded in the graphics
+        # item; the NHC feed often only lists other graphics there, so otherwise
+        # build the cone URL from the storm's summary item.
         img_tag = cdata_soup.find(
             "img",
             src=lambda src: (
                 isinstance(src, str) and "5day_cone_with_line_and_wind" in src
             ),
         )
-        if img_tag is None:
-            continue
+        image_url: str | None = None
+        if img_tag is not None:
+            src_value = img_tag.get("src")
+            if isinstance(src_value, str):
+                image_url = src_value
 
-        image_url = img_tag.get("src")
-        if not isinstance(image_url, str):
+        if image_url is None:
+            image_url = find_cone_url(soup, storm_info["name"])
+        if image_url is None:
+            logger.warning(f"No cone image found for {storm_info['name']}")
             continue
 
         speg_model = find_speg_model(soup, storm_info["name"])
