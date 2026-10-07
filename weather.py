@@ -44,6 +44,7 @@ class CliArgs:
     discord_webhook_url: str | None
     log_file: str | None
     threshold: float | str | None
+    pixel_tolerance: int | str | None = None
 
 
 @dataclass
@@ -86,6 +87,13 @@ FORMATION_CHANCE_PATTERN = re.compile(r"Formation chance", re.IGNORECASE)
 # change (e.g. a tiny formation area disappearing) falls under the normal threshold
 # and the last image is never posted.
 FINAL_UPDATE_THRESHOLD = 0.0
+
+# NOAA re-renders its images with faint, scattered pixel differences (a few gray
+# levels out of 255 on coastlines, titles and the legend) even when nothing
+# meaningful changed. A pixel only counts as changed if it differs by more than
+# this many gray levels, which lets the percentage threshold stay small enough to
+# catch real changes such as a new storm marker.
+PIXEL_TOLERANCE = 16
 
 
 def setup_logging(log_file_path: str | None = None) -> None:
@@ -262,9 +270,17 @@ def has_formation_chance(soup: BeautifulSoup) -> bool:
 
 
 def images_are_different(
-    new_image_path: str, existing_image_path: str, threshold: float = 0.001
+    new_image_path: str,
+    existing_image_path: str,
+    threshold: float = 0.001,
+    pixel_tolerance: int = PIXEL_TOLERANCE,
 ) -> bool:
-    """Compare two images to determine if they're different."""
+    """Compare two images to determine if they're different.
+
+    A pixel counts as changed if it differs by more than ``pixel_tolerance`` gray
+    levels. The images are different if the fraction of changed pixels is greater
+    than ``threshold``.
+    """
     if not os.path.exists(existing_image_path):
         logger.info(f"No existing image found at {existing_image_path}")
         return True
@@ -292,12 +308,15 @@ def images_are_different(
             if total_pixels == 0:
                 return False
 
-            # Histogram bin 0 = identical pixels; bins 1..255 = changed pixels
-            different_pixels = sum(histogram[1:])
+            # Histogram bin N = pixels that differ by N gray levels. Skip bins
+            # 0..pixel_tolerance (identical or only faintly different pixels).
+            different_pixels = sum(histogram[pixel_tolerance + 1 :])
             difference_percentage = different_pixels / total_pixels
 
             logger.info(
-                f"Image comparison: {difference_percentage:.4f} ({difference_percentage * 100:.2f}%) pixels different"
+                f"Image comparison: {difference_percentage:.4f} ({difference_percentage * 100:.2f}%) "
+                f"pixels differ by more than {pixel_tolerance}/255 "
+                f"(threshold {threshold:.4f} / {threshold * 100:.2f}%)"
             )
             return difference_percentage > threshold
 
@@ -378,7 +397,11 @@ def rollback_images(images: list[WeatherImage]) -> None:
 
 
 def process_single_image(
-    url: str, base_name: str, image_dir: str, threshold: float = 0.001
+    url: str,
+    base_name: str,
+    image_dir: str,
+    threshold: float = 0.001,
+    pixel_tolerance: int = PIXEL_TOLERANCE,
 ) -> WeatherImage:
     """Download and process a single image, returning a WeatherImage object.
 
@@ -403,7 +426,9 @@ def process_single_image(
     with open(temp_path, "wb") as temp_file:
         _ = temp_file.write(response.content)
 
-    is_different = images_are_different(temp_path, png_path, threshold)
+    is_different = images_are_different(
+        temp_path, png_path, threshold, pixel_tolerance
+    )
 
     if not is_different:
         logger.info(f"{base_name} unchanged")
@@ -436,7 +461,10 @@ def process_single_image(
 
 
 def fetch_all_weather_images(
-    soup: BeautifulSoup, image_dir: str, threshold: float = 0.001
+    soup: BeautifulSoup,
+    image_dir: str,
+    threshold: float = 0.001,
+    pixel_tolerance: int = PIXEL_TOLERANCE,
 ) -> list[WeatherImage]:
     """Fetch all weather images and return a list of WeatherImage objects."""
     logger.info("Fetching all weather images")
@@ -446,7 +474,11 @@ def fetch_all_weather_images(
         # Static seven-day outlook
         static_url = "https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png"
         static_image = process_single_image(
-            static_url, "two_atl_7d0", image_dir, threshold
+            static_url,
+            "two_atl_7d0",
+            image_dir,
+            threshold,
+            pixel_tolerance=pixel_tolerance,
         )
         static_image.image_type = "static"
         images.append(static_image)
@@ -464,6 +496,7 @@ def fetch_all_weather_images(
                     f"{storm_name}_5day_cone_with_line_and_wind",
                     image_dir,
                     threshold,
+                    pixel_tolerance=pixel_tolerance,
                 )
                 cone_image.image_type = "cone"
                 images.append(cone_image)
@@ -479,6 +512,7 @@ def fetch_all_weather_images(
                         f"{storm_name}_hurricane_models",
                         image_dir,
                         threshold,
+                        pixel_tolerance=pixel_tolerance,
                     )
                     models_image.image_type = "speg"
                     images.append(models_image)
@@ -699,11 +733,16 @@ def process_and_publish_static_image(
     slack_token: str,
     upload_channel: str,
     discord_webhook_url: str,
+    pixel_tolerance: int = PIXEL_TOLERANCE,
 ) -> WeatherImage:
     """Fetch the static outlook image, update the RSS feed, and upload it if it changed."""
     static_url = "https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png"
     static_image = process_single_image(
-        static_url, "two_atl_7d0", image_file_path, threshold
+        static_url,
+        "two_atl_7d0",
+        image_file_path,
+        threshold,
+        pixel_tolerance=pixel_tolerance,
     )
     static_image.image_type = "static"
 
@@ -745,6 +784,28 @@ def parse_threshold(
         )
 
 
+def parse_pixel_tolerance(
+    raw_tolerance: int | str | None, parser: argparse.ArgumentParser
+) -> int:
+    """Parse the per-pixel tolerance from CLI/env values (an integer from 0 to 255)."""
+    if raw_tolerance is None:
+        return PIXEL_TOLERANCE
+
+    try:
+        tolerance = int(raw_tolerance)
+    except ValueError:
+        parser.error(
+            f"Invalid PIXEL_TOLERANCE value {raw_tolerance!r}. Must be an integer from 0 to 255."
+        )
+
+    if not 0 <= tolerance <= 255:
+        parser.error(
+            f"Invalid PIXEL_TOLERANCE value {raw_tolerance!r}. Must be an integer from 0 to 255."
+        )
+
+    return tolerance
+
+
 def get_config_str(arg_value: str | None, env_key: str) -> str | None:
     """Get string config value from CLI arg first, then environment variable."""
     if arg_value is not None:
@@ -754,6 +815,15 @@ def get_config_str(arg_value: str | None, env_key: str) -> str | None:
 
 def get_config_threshold(arg_value: float | str | None, env_key: str) -> float | str | None:
     """Get threshold config from CLI arg first, then environment variable."""
+    if arg_value is not None:
+        return arg_value
+    return os.getenv(env_key)
+
+
+def get_config_pixel_tolerance(
+    arg_value: int | str | None, env_key: str
+) -> int | str | None:
+    """Get pixel tolerance config from CLI arg first, then environment variable."""
     if arg_value is not None:
         return arg_value
     return os.getenv(env_key)
@@ -786,6 +856,14 @@ def main() -> None:
         type=float,
         help="Threshold for image difference detection (default: 0.001).",
     )
+    _ = parser.add_argument(
+        "--pixel-tolerance",
+        type=int,
+        help=(
+            "Ignore pixels that differ by at most this many gray levels (0-255) when "
+            f"comparing images (default: {PIXEL_TOLERANCE})."
+        ),
+    )
 
     namespace = parser.parse_args()
     args = CliArgs(
@@ -798,6 +876,7 @@ def main() -> None:
         discord_webhook_url=getattr(namespace, "discord_webhook_url", None),
         log_file=getattr(namespace, "log_file", None),
         threshold=getattr(namespace, "threshold", None),
+        pixel_tolerance=getattr(namespace, "pixel_tolerance", None),
     )
 
     if args.env_file:
@@ -812,6 +891,9 @@ def main() -> None:
     log_file = get_config_str(args.log_file, "LOG_FILE")
     threshold = parse_threshold(
         get_config_threshold(args.threshold, "THRESHOLD"), parser
+    )
+    pixel_tolerance = parse_pixel_tolerance(
+        get_config_pixel_tolerance(args.pixel_tolerance, "PIXEL_TOLERANCE"), parser
     )
 
     required_args: dict[str, str | None] = {
@@ -843,7 +925,9 @@ def main() -> None:
     if active_storm_count > 0:
         logger.info("Processing weather images - storms detected")
 
-        all_images = fetch_all_weather_images(soup, image_file_path_str, threshold)
+        all_images = fetch_all_weather_images(
+            soup, image_file_path_str, threshold, pixel_tolerance
+        )
 
         static_image = next(
             (img for img in all_images if img.image_type == "static"), None
@@ -877,6 +961,7 @@ def main() -> None:
             slack_token_str,
             upload_channel_str,
             discord_webhook_url_str,
+            pixel_tolerance,
         )
 
         logger.info("Deleting all image files")
@@ -896,6 +981,7 @@ def main() -> None:
         slack_token_str,
         upload_channel_str,
         discord_webhook_url_str,
+        pixel_tolerance,
     )
 
     logger.info("Processing complete - handled static image only")
