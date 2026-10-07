@@ -654,6 +654,19 @@ def generate_rss_feed(static_image: WeatherImage, rss_file_path: str) -> None:
     fg.rss_file(rss_file_path)
 
 
+def gif_has_loop(gif_path: str) -> bool:
+    """Whether the GIF has more than one frame, i.e. is worth posting as a loop.
+
+    The first GIF made for an image has a single frame identical to the PNG, so
+    posting both would show the same picture twice.
+    """
+    try:
+        with Image.open(gif_path) as gif:
+            return getattr(gif, "n_frames", 1) > 1
+    except (OSError, ValueError):
+        return False
+
+
 def upload_files_to_slack(
     images: list[WeatherImage], slack_token: str, upload_channel: str
 ) -> None:
@@ -663,26 +676,17 @@ def upload_files_to_slack(
 
     for image in images:
         if image.image_type == "static":
-            file_uploads.extend(
-                [
-                    {"file": image.png_path, "title": "Seven-Day Outlook"},
-                    {"file": image.gif_path, "title": "Last 10 maps"},
-                ]
-            )
+            png_title, gif_title = "Seven-Day Outlook", "Last 10 maps"
         elif image.image_type == "cone":
-            file_uploads.extend(
-                [
-                    {"file": image.png_path, "title": image.name},
-                    {"file": image.gif_path, "title": f"{image.name} Loop"},
-                ]
-            )
+            png_title, gif_title = image.name, f"{image.name} Loop"
         elif image.image_type == "speg":
-            file_uploads.extend(
-                [
-                    {"file": image.png_path, "title": f"{image.name} Models"},
-                    {"file": image.gif_path, "title": f"{image.name} Models Loop"},
-                ]
-            )
+            png_title, gif_title = f"{image.name} Models", f"{image.name} Models Loop"
+        else:
+            continue
+
+        file_uploads.append({"file": image.png_path, "title": png_title})
+        if gif_has_loop(image.gif_path):
+            file_uploads.append({"file": image.gif_path, "title": gif_title})
 
     if not file_uploads:
         return
@@ -708,32 +712,26 @@ def upload_files_to_discord(
 
     for image in images:
         if image.image_type == "static":
-            with open(image.png_path, "rb") as png, open(image.gif_path, "rb") as gif:
-                _ = webhook.send(
-                    content="Seven-Day Outlook and Map Loop",
-                    files=[
-                        File(png, filename="outlook.png"),
-                        File(gif, filename="outlook.gif"),
-                    ],
-                )
+            content = "Seven-Day Outlook and Map Loop"
+            png_name, gif_name = "outlook.png", "outlook.gif"
         elif image.image_type == "cone":
-            with open(image.png_path, "rb") as png, open(image.gif_path, "rb") as gif:
-                _ = webhook.send(
-                    content=f"**{image.name} - NHC Cone**",
-                    files=[
-                        File(png, filename=f"{image.name}.png"),
-                        File(gif, filename=f"{image.name}.gif"),
-                    ],
-                )
+            content = f"**{image.name} - NHC Cone**"
+            png_name, gif_name = f"{image.name}.png", f"{image.name}.gif"
         elif image.image_type == "speg":
-            with open(image.png_path, "rb") as png, open(image.gif_path, "rb") as gif:
-                _ = webhook.send(
-                    content=f"**{image.name} - Hurricane Models**",
-                    files=[
-                        File(png, filename=f"{image.name}_models.png"),
-                        File(gif, filename=f"{image.name}_models.gif"),
-                    ],
-                )
+            content = f"**{image.name} - Hurricane Models**"
+            png_name, gif_name = f"{image.name}_models.png", f"{image.name}_models.gif"
+        else:
+            continue
+
+        with open(image.png_path, "rb") as png:
+            files = [File(png, filename=png_name)]
+            if not gif_has_loop(image.gif_path):
+                _ = webhook.send(content=content, files=files)
+                continue
+
+            with open(image.gif_path, "rb") as gif:
+                files.append(File(gif, filename=gif_name))
+                _ = webhook.send(content=content, files=files)
 
     logger.info("Successfully uploaded to Discord")
 
