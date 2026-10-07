@@ -295,10 +295,11 @@ class TestWeatherFunctions(unittest.TestCase):
         self.assertTrue(os.path.exists(gif_path))
     
     @patch('weather.requests.get')
-    def test_process_single_image_from_cache(self, mock_get):
-        """Test processing a single image from cache."""
+    def test_process_single_image_from_cache_unchanged(self, mock_get):
+        """A cached body identical to the local file is reported as unchanged."""
         mock_response = Mock()
-        mock_response.content = b'fake_image_data'
+        with open(self.test_image_path, 'rb') as f:
+            mock_response.content = f.read()
         mock_response.from_cache = True
         mock_get.return_value = mock_response
         
@@ -311,7 +312,7 @@ class TestWeatherFunctions(unittest.TestCase):
         self.assertIsInstance(result, WeatherImage)
         self.assertEqual(result.name, 'test_image')
         self.assertFalse(result.is_new)
-        self.assertEqual(result.image_type, 'cached')
+        self.assertEqual(result.image_type, 'processed')
     
     @patch('weather.update_gif')
     @patch('weather.images_are_different')

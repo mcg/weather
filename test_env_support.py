@@ -246,6 +246,8 @@ THRESHOLD=0.005
             mock_new_image = MagicMock()
             mock_new_image.image_type = 'storm'
             mock_new_image.is_new = True
+            mock_new_image.previous_png = None
+            mock_new_image.previous_gif = None
             
             mock_fetch_images.return_value = [mock_static_image, mock_new_image]
             

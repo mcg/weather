@@ -6,6 +6,7 @@ import argparse
 import logging
 import os
 import re
+import shutil
 import time
 from dataclasses import dataclass
 from datetime import timedelta
@@ -54,7 +55,11 @@ class WeatherImage:
     gif_path: str
     url: str
     is_new: bool
-    image_type: str  # 'static', 'cone', 'speg', 'cached', 'processed'
+    image_type: str  # 'static', 'cone', 'speg', 'processed'
+    # Backups of the files this image replaced. They let a failed upload be rolled
+    # back, so the next run sees the image as new again and retries it.
+    previous_png: str | None = None
+    previous_gif: str | None = None
 
 
 # Set up caching
@@ -324,19 +329,75 @@ def update_gif(png_path: str, gif_path: str, max_frames: int = 10) -> None:
     logger.info(f"Updated GIF: {gif_path} (frames: {len(frames)})")
 
 
+BACKUP_SUFFIX = ".prev"
+
+
+def stash_file(path: str, move: bool) -> str | None:
+    """Back up ``path`` to ``path.prev``; return the backup path, or None if there was no file."""
+    if not os.path.exists(path):
+        return None
+
+    backup_path = f"{path}{BACKUP_SUFFIX}"
+    if move:
+        os.replace(path, backup_path)
+    else:
+        _ = shutil.copy2(path, backup_path)
+    return backup_path
+
+
+def restore_file(path: str, backup_path: str | None) -> None:
+    """Put a backed-up file back, or remove ``path`` if there was nothing to back up."""
+    if backup_path is not None and os.path.exists(backup_path):
+        os.replace(backup_path, path)
+    elif backup_path is None and os.path.exists(path):
+        os.remove(path)
+
+
+def commit_images(images: list[WeatherImage]) -> None:
+    """Discard backups once the new images have been published."""
+    for image in images:
+        for backup_path in (image.previous_png, image.previous_gif):
+            if backup_path is not None and os.path.exists(backup_path):
+                os.remove(backup_path)
+
+
+def rollback_images(images: list[WeatherImage]) -> None:
+    """Restore the files that new images replaced so the next run retries them."""
+    for image in images:
+        if not image.is_new:
+            continue
+        logger.warning(f"Rolling back {image.name} so it is retried on the next run")
+        for path, backup_path in (
+            (image.png_path, image.previous_png),
+            (image.gif_path, image.previous_gif),
+        ):
+            try:
+                restore_file(path, backup_path)
+            except OSError as exc:
+                logger.error(f"Failed to roll back {path}: {exc}")
+
+
 def process_single_image(
     url: str, base_name: str, image_dir: str, threshold: float = 0.001
 ) -> WeatherImage:
-    """Download and process a single image, returning a WeatherImage object."""
+    """Download and process a single image, returning a WeatherImage object.
+
+    The downloaded body is compared with the local PNG on every call, even when
+    the HTTP cache answered the request. The cache only says that we have seen a
+    body before, not that it was ever published.
+
+    If the image is new, the files it replaces are kept as backups so that
+    ``rollback_images`` can undo the change if publishing fails.
+    """
     logger.info(f"Processing image: {base_name}")
 
     response = requests.get(url)
+    response.raise_for_status()
+    if bool(getattr(response, "from_cache", False)):
+        logger.info(f"{base_name} served from HTTP cache - comparing with local copy")
+
     png_path = f"{image_dir}/{base_name}.png"
     gif_path = f"{image_dir}/{base_name}.gif"
-
-    if bool(getattr(response, "from_cache", False)):
-        logger.info(f"{base_name} from cache")
-        return WeatherImage(base_name, png_path, gif_path, url, False, "cached")
 
     temp_path = f"{png_path}.tmp"
     with open(temp_path, "wb") as temp_file:
@@ -344,17 +405,34 @@ def process_single_image(
 
     is_different = images_are_different(temp_path, png_path, threshold)
 
-    if is_different:
-        logger.info(f"{base_name} is new/different")
-        if os.path.exists(png_path):
-            os.remove(png_path)
-        os.rename(temp_path, png_path)
-        update_gif(png_path, gif_path)
-    else:
+    if not is_different:
         logger.info(f"{base_name} unchanged")
         os.remove(temp_path)
+        return WeatherImage(base_name, png_path, gif_path, url, False, "processed")
 
-    return WeatherImage(base_name, png_path, gif_path, url, is_different, "processed")
+    logger.info(f"{base_name} is new/different")
+    previous_png = stash_file(png_path, move=True)
+    previous_gif = stash_file(gif_path, move=False)
+    try:
+        os.rename(temp_path, png_path)
+        update_gif(png_path, gif_path)
+    except Exception:
+        restore_file(png_path, previous_png)
+        restore_file(gif_path, previous_gif)
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        raise
+
+    return WeatherImage(
+        base_name,
+        png_path,
+        gif_path,
+        url,
+        True,
+        "processed",
+        previous_png,
+        previous_gif,
+    )
 
 
 def fetch_all_weather_images(
@@ -364,44 +442,55 @@ def fetch_all_weather_images(
     logger.info("Fetching all weather images")
     images: list[WeatherImage] = []
 
-    # Static seven-day outlook
-    static_url = "https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png"
-    static_image = process_single_image(static_url, "two_atl_7d0", image_dir, threshold)
-    static_image.image_type = "static"
-    images.append(static_image)
-
-    # Cyclone images
-    cyclones = find_cyclones_in_feed(soup)
-    for cyclone in cyclones:
-        storm_name = cyclone["storm_name"]
-
-        # NHC cone image
-        cone_image = process_single_image(
-            cyclone["image_url"],
-            f"{storm_name}_5day_cone_with_line_and_wind",
-            image_dir,
-            threshold,
+    try:
+        # Static seven-day outlook
+        static_url = "https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png"
+        static_image = process_single_image(
+            static_url, "two_atl_7d0", image_dir, threshold
         )
-        cone_image.image_type = "cone"
-        images.append(cone_image)
+        static_image.image_type = "static"
+        images.append(static_image)
 
-        # Hurricane models image (if available)
-        if cyclone["speg_model"]:
-            models_url = f"https://web.uwm.edu/hurricane-models/models/{cyclone['speg_model']}.png"
+        # Cyclone images. A failure for one image must not stop the others (in
+        # particular the static outlook) from being published.
+        cyclones = find_cyclones_in_feed(soup)
+        for cyclone in cyclones:
+            storm_name = cyclone["storm_name"]
+
+            # NHC cone image
             try:
-                models_image = process_single_image(
-                    models_url,
-                    f"{storm_name}_hurricane_models",
+                cone_image = process_single_image(
+                    cyclone["image_url"],
+                    f"{storm_name}_5day_cone_with_line_and_wind",
                     image_dir,
                     threshold,
                 )
-                models_image.image_type = "speg"
-                images.append(models_image)
-                logger.info(f"Fetched hurricane models for {storm_name}")
+                cone_image.image_type = "cone"
+                images.append(cone_image)
             except Exception as exc:
-                logger.warning(
-                    f"Failed to fetch hurricane models for {storm_name}: {exc}"
-                )
+                logger.warning(f"Failed to fetch cone image for {storm_name}: {exc}")
+
+            # Hurricane models image (if available)
+            if cyclone["speg_model"]:
+                models_url = f"https://web.uwm.edu/hurricane-models/models/{cyclone['speg_model']}.png"
+                try:
+                    models_image = process_single_image(
+                        models_url,
+                        f"{storm_name}_hurricane_models",
+                        image_dir,
+                        threshold,
+                    )
+                    models_image.image_type = "speg"
+                    images.append(models_image)
+                    logger.info(f"Fetched hurricane models for {storm_name}")
+                except Exception as exc:
+                    logger.warning(
+                        f"Failed to fetch hurricane models for {storm_name}: {exc}"
+                    )
+    except Exception:
+        # Nothing will be published, so undo any files already replaced.
+        rollback_images(images)
+        raise
 
     logger.info(f"Processed {len(images)} images total")
     return images
@@ -517,6 +606,47 @@ def upload_files_to_discord(
     logger.info("Successfully uploaded to Discord")
 
 
+def publish_images(
+    images: list[WeatherImage],
+    slack_token: str,
+    upload_channel: str,
+    discord_webhook_url: str,
+) -> None:
+    """Upload new images to every destination, then commit or roll back the local files.
+
+    Slack and Discord are attempted independently so one outage doesn't block the
+    other. If every destination fails, the local files are rolled back so the next
+    run sees the images as new and retries. If only some fail, the images are
+    kept (rolling back would re-post to the destinations that worked on every
+    run), and the error is still raised so the failure is visible.
+    """
+    new_images = [image for image in images if image.is_new]
+    if not new_images:
+        logger.info("No new images to upload")
+        return
+
+    logger.info(f"Uploading {len(new_images)} new images")
+    failures: list[Exception] = []
+    destinations = (
+        ("Slack", lambda: upload_files_to_slack(new_images, slack_token, upload_channel)),
+        ("Discord", lambda: upload_files_to_discord(new_images, discord_webhook_url)),
+    )
+    for destination, upload in destinations:
+        try:
+            upload()
+        except Exception as exc:
+            logger.error(f"{destination} upload failed: {exc}")
+            failures.append(exc)
+
+    if len(failures) == len(destinations):
+        rollback_images(new_images)
+        raise failures[0]
+
+    commit_images(new_images)
+    if failures:
+        raise failures[0]
+
+
 def delete_images(image_dir: str) -> None:
     """Delete all PNG and GIF files in the directory."""
     logger.info(f"Deleting images from {image_dir}")
@@ -581,8 +711,9 @@ def process_and_publish_static_image(
 
     if static_image.is_new:
         logger.info("Static image has been updated - uploading")
-        upload_files_to_slack([static_image], slack_token, upload_channel)
-        upload_files_to_discord([static_image], discord_webhook_url)
+        publish_images(
+            [static_image], slack_token, upload_channel, discord_webhook_url
+        )
     else:
         logger.info("Static image unchanged - no upload needed")
 
@@ -720,14 +851,9 @@ def main() -> None:
         if static_image:
             generate_rss_feed(static_image, rss_file_path_str)
 
-        new_images = [img for img in all_images if img.is_new]
-
-        if new_images:
-            logger.info(f"Uploading {len(new_images)} new images")
-            upload_files_to_slack(new_images, slack_token_str, upload_channel_str)
-            upload_files_to_discord(new_images, discord_webhook_url_str)
-        else:
-            logger.info("No new images to upload")
+        publish_images(
+            all_images, slack_token_str, upload_channel_str, discord_webhook_url_str
+        )
 
         logger.info(f"Processing complete - handled {len(all_images)} total images")
         return
