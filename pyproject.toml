@@ -23,7 +23,7 @@ dev = [
     "pytest>=9.1.0",
     "pytest-cov>=6.0.0",
     "pytest-mock>=3.16.0",
-    "ruff>=0.16.0",
+    "ruff>=0.17.0",
 ]
 
 [tool.ruff.lint]
