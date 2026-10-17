@@ -6,6 +6,14 @@ Only Python 3.15 is supported.
 
 ## Setup and run
 
+On Debian/Ubuntu, install the native prerequisites before syncing. `lxml` may
+need to build from source when a Python 3.15 wheel is unavailable:
+
+```sh
+sudo apt-get update
+sudo apt-get install --yes --no-install-recommends build-essential libxml2-dev libxslt1-dev
+```
+
 ```sh
 uv sync
 cp .env.example .env
