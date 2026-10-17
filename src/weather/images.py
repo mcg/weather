@@ -213,7 +213,7 @@ def gif_has_loop(gif_path: str) -> bool:
     try:
         with Image.open(gif_path) as gif:
             return getattr(gif, "n_frames", 1) > 1
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return False
 
 

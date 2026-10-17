@@ -33,7 +33,7 @@ def parse_threshold(
     """Parse a finite changed-pixel fraction between zero and one."""
     try:
         threshold = DEFAULT_THRESHOLD if raw_threshold is None else float(raw_threshold)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         parser.error(
             f"Invalid THRESHOLD value {raw_threshold!r}. Must be a float from 0 to 1."
         )
@@ -50,7 +50,7 @@ def parse_pixel_tolerance(
     """Parse the per-pixel gray-level tolerance."""
     try:
         tolerance = PIXEL_TOLERANCE if raw_tolerance is None else int(raw_tolerance)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         parser.error(
             f"Invalid PIXEL_TOLERANCE value {raw_tolerance!r}. Must be an integer from 0 to 255."
         )

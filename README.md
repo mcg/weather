@@ -1,7 +1,8 @@
 # Weather
 
 Fetch NOAA weather feeds and images, publish updates to Slack and Discord, and
-write an RSS feed. Requires Python 3.12 or newer and [uv](https://docs.astral.sh/uv/).
+write an RSS feed. Requires Python 3.15 and [uv](https://docs.astral.sh/uv/).
+Only Python 3.15 is supported.
 
 ## Setup and run
 
@@ -119,7 +120,7 @@ uv run pytest --cov-report=html
 
 Basedpyright checks `src/weather` only; tests are not yet part of its
 configured scope. Ruff retains the existing `E4`, `E7`, `E9`, and `F` lint rules.
-CI tests Python 3.12, 3.13, and 3.14 with `uv sync --locked --dev`, checks lint,
+CI tests Python 3.15 with `uv sync --locked --dev`, checks lint,
 formatting, and types, and builds wheel and source distributions.
 
 Application code lives in `src/weather`; the console entry point is
