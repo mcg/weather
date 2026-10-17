@@ -3,10 +3,10 @@ import unittest
 
 from bs4 import BeautifulSoup
 
-from weather import build_cone_url, find_cone_url, find_cyclones_in_feed
+from weather.feeds import build_cone_url, find_cone_url, find_cyclones_in_feed
 
 EXAMPLE_FEED = os.path.join(
-    os.path.dirname(__file__), "xml-examples", "index-at-storm.xml"
+    os.path.dirname(__file__), "fixtures", "feeds", "index-at-storm.xml"
 )
 
 EXPECTED_CONE_URL = (
@@ -36,7 +36,9 @@ class TestBuildConeUrl(unittest.TestCase):
 
 class TestFindConeUrl(unittest.TestCase):
     def test_example_feed(self):
-        self.assertEqual(find_cone_url(load_example_feed(), "Isaias"), EXPECTED_CONE_URL)
+        self.assertEqual(
+            find_cone_url(load_example_feed(), "Isaias"), EXPECTED_CONE_URL
+        )
 
     def test_unknown_storm_returns_none(self):
         self.assertIsNone(find_cone_url(load_example_feed(), "Nobody"))

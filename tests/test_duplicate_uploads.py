@@ -6,7 +6,9 @@ from unittest.mock import patch
 
 from PIL import Image
 
-from weather import WeatherImage, gif_has_loop, upload_files_to_discord, upload_files_to_slack
+from weather.models import WeatherImage
+from weather.images import gif_has_loop
+from weather.publishing import upload_files_to_discord, upload_files_to_slack
 
 
 class TestDuplicateUploads(unittest.TestCase):
@@ -20,7 +22,9 @@ class TestDuplicateUploads(unittest.TestCase):
         blue = Image.new("RGB", (50, 50), "blue")
         red.save(self.png_path)
         red.save(self.single_gif, "GIF")
-        red.save(self.loop_gif, save_all=True, append_images=[blue], duration=100, loop=0)
+        red.save(
+            self.loop_gif, save_all=True, append_images=[blue], duration=100, loop=0
+        )
 
     def tearDown(self):
         shutil.rmtree(self.temp_dir)
@@ -35,17 +39,19 @@ class TestDuplicateUploads(unittest.TestCase):
     def test_gif_has_loop_missing_file(self):
         self.assertFalse(gif_has_loop(os.path.join(self.temp_dir, "missing.gif")))
 
-    @patch("weather.WebClient")
+    @patch("weather.publishing.WebClient")
     def test_slack_skips_single_frame_gif(self, mock_client_class):
         client = mock_client_class.return_value
 
         for image_type in ("static", "cone", "speg"):
             client.reset_mock()
-            upload_files_to_slack([self.image(self.single_gif, image_type)], "token", "chan")
+            upload_files_to_slack(
+                [self.image(self.single_gif, image_type)], "token", "chan"
+            )
             uploads = client.files_upload_v2.call_args.kwargs["file_uploads"]
             self.assertEqual([u["file"] for u in uploads], [self.png_path], image_type)
 
-    @patch("weather.WebClient")
+    @patch("weather.publishing.WebClient")
     def test_slack_includes_multi_frame_gif(self, mock_client_class):
         client = mock_client_class.return_value
 
@@ -54,26 +60,31 @@ class TestDuplicateUploads(unittest.TestCase):
         uploads = client.files_upload_v2.call_args.kwargs["file_uploads"]
         self.assertEqual([u["file"] for u in uploads], [self.png_path, self.loop_gif])
 
-    @patch("weather.WebClient")
+    @patch("weather.publishing.WebClient")
     def test_slack_all_single_frame_images_post_one_file_each(self, mock_client_class):
         client = mock_client_class.return_value
-        images = [self.image(self.single_gif, "cone"), self.image(self.single_gif, "speg")]
+        images = [
+            self.image(self.single_gif, "cone"),
+            self.image(self.single_gif, "speg"),
+        ]
 
         upload_files_to_slack(images, "token", "chan")
 
         uploads = client.files_upload_v2.call_args.kwargs["file_uploads"]
         self.assertEqual(len(uploads), 2)
 
-    @patch("weather.SyncWebhook")
+    @patch("weather.publishing.SyncWebhook")
     def test_discord_skips_single_frame_gif(self, mock_webhook_class):
         webhook = mock_webhook_class.from_url.return_value
 
-        upload_files_to_discord([self.image(self.single_gif)], "https://example.com/hook")
+        upload_files_to_discord(
+            [self.image(self.single_gif)], "https://example.com/hook"
+        )
 
         files = webhook.send.call_args.kwargs["files"]
         self.assertEqual([f.filename for f in files], ["Isaias.png"])
 
-    @patch("weather.SyncWebhook")
+    @patch("weather.publishing.SyncWebhook")
     def test_discord_includes_multi_frame_gif(self, mock_webhook_class):
         webhook = mock_webhook_class.from_url.return_value
 

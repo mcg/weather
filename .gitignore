@@ -1,8 +1,31 @@
-weather_feed.xml
-weather_cache.sqlite
+# Local configuration (keep the documented template).
+.env
+.env.*
+!.env.example
 
-img
-*.xml
-__pycache__
+# Python environments and caches.
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+
+# Coverage and packaging output.
 .coverage
-.env.test
+.coverage.*
+htmlcov/
+/coverage.xml
+/build/
+/dist/
+*.egg-info/
+
+# Runtime state in the working directory; XML fixtures remain trackable.
+/weather_cache.sqlite
+/weather_cache.sqlite-*
+/weather_cache.sqlite-journal
+/weather_cache.sqlite-wal
+/weather_cache.sqlite-shm
+/*.xml
+/img/

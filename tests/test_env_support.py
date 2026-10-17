@@ -2,41 +2,15 @@ import argparse
 import pytest
 import tempfile
 import os
-import sys
 from unittest.mock import patch, MagicMock
-from weather import PIXEL_TOLERANCE, main, parse_pixel_tolerance
-
-
-@pytest.fixture(autouse=True)
-def clean_env():
-    """Clean up environment variables before and after each test."""
-    env_vars_to_clean = [
-        'RSS_FILE_PATH', 'IMAGE_FILE_PATH', 'SLACK_WEBHOOK_URL', 
-        'SLACK_TOKEN', 'UPLOAD_CHANNEL', 'DISCORD_WEBHOOK_URL', 'LOG_FILE', 'THRESHOLD',
-        'PIXEL_TOLERANCE'
-    ]
-    
-    # Store original values
-    original_values = {}
-    for var in env_vars_to_clean:
-        original_values[var] = os.environ.get(var)
-        if var in os.environ:
-            del os.environ[var]
-    
-    yield
-    
-    # Restore original values
-    for var in env_vars_to_clean:
-        if var in os.environ:
-            del os.environ[var]
-        if original_values[var] is not None:
-            os.environ[var] = original_values[var]
+from weather.config import PIXEL_TOLERANCE, parse_pixel_tolerance
+from weather.cli import main
 
 
 def test_env_file_loading():
     """Test that .env file values are loaded correctly."""
     # Create a temporary .env file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.env', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".env", delete=False) as f:
         f.write("""RSS_FILE_PATH=test-feed.xml
 IMAGE_FILE_PATH=test-images/
 SLACK_WEBHOOK_URL=https://hooks.slack.com/test
@@ -47,36 +21,37 @@ LOG_FILE=test.log
 THRESHOLD=0.005
 """)
         env_file_path = f.name
-    
+
     try:
         # Mock the main functionality to avoid network calls and file operations
-        with patch('weather.fetch_xml_feed') as mock_fetch, \
-             patch('weather.has_formation_chance') as mock_formation_chance, \
-             patch('weather.delete_storm_images') as mock_delete, \
-             patch('weather.process_single_image') as mock_process, \
-             patch('weather.generate_rss_feed') as mock_rss, \
-             patch('weather.upload_files_to_slack') as mock_slack, \
-             patch('weather.upload_files_to_discord') as mock_discord, \
-             patch('weather.setup_logging') as mock_logging, \
-             patch('sys.argv', ['weather.py', '--env-file', env_file_path]):
-            
+        with (
+            patch("weather.application.fetch_xml_feed") as mock_fetch,
+            patch("weather.application.has_formation_chance") as mock_formation_chance,
+            patch("weather.application.delete_storm_images") as mock_delete,
+            patch("weather.application.process_single_image") as mock_process,
+            patch("weather.application.generate_rss_feed"),
+            patch("weather.publishing.upload_files_to_slack"),
+            patch("weather.publishing.upload_files_to_discord"),
+            patch("weather.cli.setup_logging") as mock_logging,
+            patch("sys.argv", ["weather.py", "--env-file", env_file_path]),
+        ):
             mock_fetch.return_value = (0, None)  # No storms (count = 0)
             mock_formation_chance.return_value = True  # Formation chance present
-            
+
             # Mock the static image processing
             mock_static_image = MagicMock()
             mock_static_image.is_new = False
             mock_process.return_value = mock_static_image
-            
+
             # This should not raise an error - all required args should be loaded from .env
             main()
-            
+
             # Verify that setup_logging was called with the log file from .env
-            mock_logging.assert_called_once_with('test.log')
-            
+            mock_logging.assert_called_once_with("test.log")
+
             # Verify that delete_storm_images was called with the image path from .env
-            mock_delete.assert_called_once_with('test-images/')
-            
+            mock_delete.assert_called_once_with("test-images")
+
     finally:
         # Clean up
         os.unlink(env_file_path)
@@ -85,7 +60,7 @@ THRESHOLD=0.005
 def test_command_line_args_override_env():
     """Test that command line arguments take precedence over .env values."""
     # Create a temporary .env file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.env', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".env", delete=False) as f:
         f.write("""RSS_FILE_PATH=env-feed.xml
 IMAGE_FILE_PATH=env-images/
 SLACK_WEBHOOK_URL=https://hooks.slack.com/env
@@ -96,49 +71,56 @@ LOG_FILE=env.log
 THRESHOLD=0.005
 """)
         env_file_path = f.name
-    
+
     try:
         # Mock the main functionality to avoid network calls and file operations
-        with patch('weather.fetch_xml_feed') as mock_fetch, \
-             patch('weather.delete_storm_images') as mock_delete, \
-             patch('weather.process_single_image') as mock_process, \
-             patch('weather.fetch_all_weather_images') as mock_fetch_images, \
-             patch('weather.generate_rss_feed') as mock_rss, \
-             patch('weather.upload_files_to_slack') as mock_slack, \
-             patch('weather.upload_files_to_discord') as mock_discord, \
-             patch('weather.setup_logging') as mock_logging, \
-             patch('sys.argv', [
-                 'weather.py', 
-                 '--env-file', env_file_path,
-                 'cli-feed.xml',  # This should override the .env value
-                 'cli-images/',
-                 'https://hooks.slack.com/cli',
-                 'cli-token',
-                 'cli-channel',
-                 'https://discord.com/cli',
-                 '--threshold', '0.008',  # Override threshold (env has 0.005)
-                 '--log-file', 'cli.log'  # Override the log file from .env
-             ]):
-            
+        with (
+            patch("weather.application.fetch_xml_feed") as mock_fetch,
+            patch("weather.application.delete_storm_images") as mock_delete,
+            patch("weather.application.process_single_image"),
+            patch("weather.application.fetch_all_weather_images") as mock_fetch_images,
+            patch("weather.application.generate_rss_feed"),
+            patch("weather.publishing.upload_files_to_slack"),
+            patch("weather.publishing.upload_files_to_discord"),
+            patch("weather.cli.setup_logging") as mock_logging,
+            patch(
+                "sys.argv",
+                [
+                    "weather.py",
+                    "--env-file",
+                    env_file_path,
+                    "cli-feed.xml",  # This should override the .env value
+                    "cli-images/",
+                    "https://hooks.slack.com/cli",
+                    "cli-token",
+                    "cli-channel",
+                    "https://discord.com/cli",
+                    "--threshold",
+                    "0.008",  # Override threshold (env has 0.005)
+                    "--log-file",
+                    "cli.log",  # Override the log file from .env
+                ],
+            ),
+        ):
             # Test with storms present (tests threshold via fetch_all_weather_images)
             mock_fetch.return_value = (1, MagicMock())  # Has storms to test threshold
-            
+
             # Mock images
             mock_static_image = MagicMock()
-            mock_static_image.image_type = 'static'
+            mock_static_image.image_type = "static"
             mock_static_image.is_new = False
-            
+
             mock_fetch_images.return_value = [mock_static_image]
-            
+
             # This should not raise an error - all required args should be loaded from .env but overridden by CLI
             main()
-            
+
             # Verify that setup_logging was called with the CLI log file, not env
-            mock_logging.assert_called_once_with('cli.log')  # CLI log file, not env
-            
+            mock_logging.assert_called_once_with("cli.log")  # CLI log file, not env
+
             # When storms are present, delete_storm_images is NOT called
             mock_delete.assert_not_called()
-            
+
             # Verify that fetch_all_weather_images was called with CLI threshold (0.008), not env (0.005)
             mock_fetch_images.assert_called_once()
             args = mock_fetch_images.call_args[0]
@@ -151,7 +133,7 @@ THRESHOLD=0.005
 def test_env_fallback_for_optional_args():
     """Test that .env values are used for optional args when not provided via CLI."""
     # Create a temporary .env file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.env', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".env", delete=False) as f:
         f.write("""RSS_FILE_PATH=env-feed.xml
 IMAGE_FILE_PATH=env-images/
 SLACK_WEBHOOK_URL=https://hooks.slack.com/env
@@ -162,44 +144,49 @@ LOG_FILE=env.log
 THRESHOLD=0.005
 """)
         env_file_path = f.name
-    
+
     try:
         # Mock the main functionality to avoid network calls and file operations
-        with patch('weather.fetch_xml_feed') as mock_fetch, \
-             patch('weather.has_formation_chance') as mock_formation_chance, \
-             patch('weather.delete_storm_images') as mock_delete, \
-             patch('weather.process_single_image') as mock_process, \
-             patch('weather.generate_rss_feed') as mock_rss, \
-             patch('weather.upload_files_to_slack') as mock_slack, \
-             patch('weather.upload_files_to_discord') as mock_discord, \
-             patch('weather.setup_logging') as mock_logging, \
-             patch('sys.argv', [
-                 'weather.py', 
-                 '--env-file', env_file_path,
-                 'cli-feed.xml',  # Override RSS path
-                 'cli-images/',   # Override image path
-                 'https://hooks.slack.com/cli',  # Override slack webhook
-                 'cli-token',     # Override slack token
-                 'cli-channel',   # Override upload channel
-                 'https://discord.com/cli'  # Override discord webhook
-                 # Note: No --log-file specified, should use .env value
-             ]):
-            
+        with (
+            patch("weather.application.fetch_xml_feed") as mock_fetch,
+            patch("weather.application.has_formation_chance") as mock_formation_chance,
+            patch("weather.application.delete_storm_images") as mock_delete,
+            patch("weather.application.process_single_image") as mock_process,
+            patch("weather.application.generate_rss_feed"),
+            patch("weather.publishing.upload_files_to_slack"),
+            patch("weather.publishing.upload_files_to_discord"),
+            patch("weather.cli.setup_logging") as mock_logging,
+            patch(
+                "sys.argv",
+                [
+                    "weather.py",
+                    "--env-file",
+                    env_file_path,
+                    "cli-feed.xml",  # Override RSS path
+                    "cli-images/",  # Override image path
+                    "https://hooks.slack.com/cli",  # Override slack webhook
+                    "cli-token",  # Override slack token
+                    "cli-channel",  # Override upload channel
+                    "https://discord.com/cli",  # Override discord webhook
+                    # Note: No --log-file specified, should use .env value
+                ],
+            ),
+        ):
             mock_fetch.return_value = (0, None)  # No storms (count = 0)
             mock_formation_chance.return_value = True  # Formation chance present
-            
+
             # Mock the static image processing
             mock_static_image = MagicMock()
             mock_static_image.is_new = False
             mock_process.return_value = mock_static_image
-            
+
             main()
-            
+
             # Should use the log file from .env since not specified in CLI
-            mock_logging.assert_called_once_with('env.log')
+            mock_logging.assert_called_once_with("env.log")
             # Should use CLI args for required params
-            mock_delete.assert_called_once_with('cli-images/')
-            
+            mock_delete.assert_called_once_with("cli-images")
+
     finally:
         # Clean up
         os.unlink(env_file_path)
@@ -207,7 +194,7 @@ THRESHOLD=0.005
 
 def test_missing_required_args_error():
     """Test that missing required arguments raise an error."""
-    with patch('sys.argv', ['weather.py']):
+    with patch("sys.argv", ["weather.py"]):
         with pytest.raises(SystemExit):  # argparse calls sys.exit on error
             main()
 
@@ -215,7 +202,7 @@ def test_missing_required_args_error():
 def test_env_file_with_storms():
     """Test .env file loading when storms are detected."""
     # Create a temporary .env file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.env', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".env", delete=False) as f:
         f.write("""RSS_FILE_PATH=test-feed.xml
 IMAGE_FILE_PATH=test-images/
 SLACK_WEBHOOK_URL=https://hooks.slack.com/test
@@ -225,45 +212,46 @@ DISCORD_WEBHOOK_URL=https://discord.com/test
 THRESHOLD=0.005
 """)
         env_file_path = f.name
-    
+
     try:
         # Mock the main functionality to simulate storm conditions
-        with patch('weather.fetch_xml_feed') as mock_fetch, \
-             patch('weather.fetch_all_weather_images') as mock_fetch_images, \
-             patch('weather.generate_rss_feed') as mock_rss, \
-             patch('weather.upload_files_to_slack') as mock_slack, \
-             patch('weather.upload_files_to_discord') as mock_discord, \
-             patch('weather.setup_logging') as mock_logging, \
-             patch('sys.argv', ['weather.py', '--env-file', env_file_path]):
-            
+        with (
+            patch("weather.application.fetch_xml_feed") as mock_fetch,
+            patch("weather.application.fetch_all_weather_images") as mock_fetch_images,
+            patch("weather.application.generate_rss_feed"),
+            patch("weather.publishing.upload_files_to_slack") as mock_slack,
+            patch("weather.publishing.upload_files_to_discord") as mock_discord,
+            patch("weather.cli.setup_logging"),
+            patch("sys.argv", ["weather.py", "--env-file", env_file_path]),
+        ):
             # Simulate storms detected
             mock_soup = MagicMock()
             mock_fetch.return_value = (1, mock_soup)  # Storms detected (count = 1)
-            
+
             # Mock images with one static and one new
             mock_static_image = MagicMock()
-            mock_static_image.image_type = 'static'
+            mock_static_image.image_type = "static"
             mock_static_image.is_new = False
-            
+
             mock_new_image = MagicMock()
-            mock_new_image.image_type = 'storm'
+            mock_new_image.image_type = "storm"
             mock_new_image.is_new = True
             mock_new_image.previous_png = None
             mock_new_image.previous_gif = None
-            
+
             mock_fetch_images.return_value = [mock_static_image, mock_new_image]
-            
+
             main()
-            
+
             # Verify that fetch_all_weather_images was called with the image path from .env
             mock_fetch_images.assert_called_once()
             args = mock_fetch_images.call_args[0]
-            assert args[1] == 'test-images/'  # image_file_path from .env
-            
+            assert args[1] == "test-images"  # image_file_path from .env
+
             # Verify upload functions were called for new images
             mock_slack.assert_called_once()
             mock_discord.assert_called_once()
-            
+
     finally:
         # Clean up
         os.unlink(env_file_path)
@@ -272,7 +260,7 @@ THRESHOLD=0.005
 def test_threshold_env_variable():
     """Test that THRESHOLD environment variable is read and converted to float correctly."""
     # Create a temporary .env file with THRESHOLD
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.env', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".env", delete=False) as f:
         f.write("""RSS_FILE_PATH=test-feed.xml
 IMAGE_FILE_PATH=test-images/
 SLACK_WEBHOOK_URL=https://hooks.slack.com/test
@@ -282,33 +270,34 @@ DISCORD_WEBHOOK_URL=https://discord.com/test
 THRESHOLD=0.005
 """)
         env_file_path = f.name
-    
+
     try:
         # Mock the main functionality to avoid network calls and file operations
-        with patch('weather.fetch_xml_feed') as mock_fetch, \
-             patch('weather.fetch_all_weather_images') as mock_fetch_images, \
-             patch('weather.generate_rss_feed') as mock_rss, \
-             patch('weather.upload_files_to_slack') as mock_slack, \
-             patch('weather.upload_files_to_discord') as mock_discord, \
-             patch('sys.argv', ['weather.py', '--env-file', env_file_path]):
-            
+        with (
+            patch("weather.application.fetch_xml_feed") as mock_fetch,
+            patch("weather.application.fetch_all_weather_images") as mock_fetch_images,
+            patch("weather.application.generate_rss_feed"),
+            patch("weather.publishing.upload_files_to_slack"),
+            patch("weather.publishing.upload_files_to_discord"),
+            patch("sys.argv", ["weather.py", "--env-file", env_file_path]),
+        ):
             # Mock no storms scenario but we'll change to storms to test threshold
             mock_fetch.return_value = (1, MagicMock())  # has storms (count = 1)
-            
+
             # Mock images
             mock_static_image = MagicMock()
-            mock_static_image.image_type = 'static'
+            mock_static_image.image_type = "static"
             mock_static_image.is_new = False
-            
+
             mock_fetch_images.return_value = [mock_static_image]
-            
+
             main()
-            
+
             # Verify that fetch_all_weather_images was called with the threshold from .env (0.005)
             mock_fetch_images.assert_called_once()
             args = mock_fetch_images.call_args[0]
             assert args[2] == 0.005  # threshold from .env as float
-            
+
     finally:
         # Clean up
         os.unlink(env_file_path)
@@ -316,59 +305,78 @@ THRESHOLD=0.005
 
 def test_threshold_command_line_override():
     """Test that command line threshold argument overrides environment variable."""
-    
+    os.environ["THRESHOLD"] = "0.005"
     try:
         # Mock the main functionality
-        with patch('weather.fetch_xml_feed') as mock_fetch, \
-             patch('weather.fetch_all_weather_images') as mock_fetch_images, \
-             patch('weather.generate_rss_feed') as mock_rss, \
-             patch('weather.upload_files_to_slack') as mock_slack, \
-             patch('weather.upload_files_to_discord') as mock_discord, \
-             patch('sys.argv', ['weather.py', 'test-feed.xml', 'test-images/', 
-                               'slack_webhook', 'slack_token', 'channel', 'discord_webhook',
-                               '--threshold', '0.008']):
-            
+        with (
+            patch("weather.application.fetch_xml_feed") as mock_fetch,
+            patch("weather.application.fetch_all_weather_images") as mock_fetch_images,
+            patch("weather.application.generate_rss_feed"),
+            patch("weather.publishing.upload_files_to_slack"),
+            patch("weather.publishing.upload_files_to_discord"),
+            patch(
+                "sys.argv",
+                [
+                    "weather.py",
+                    "test-feed.xml",
+                    "test-images/",
+                    "slack_webhook",
+                    "slack_token",
+                    "channel",
+                    "discord_webhook",
+                    "--threshold",
+                    "0.008",
+                ],
+            ),
+        ):
             mock_fetch.return_value = (1, MagicMock())  # has storms (count = 1)
-            
+
             # Mock images
             mock_static_image = MagicMock()
-            mock_static_image.image_type = 'static'
+            mock_static_image.image_type = "static"
             mock_static_image.is_new = False
-            
+
             mock_fetch_images.return_value = [mock_static_image]
-            
+
             main()
-            
+
             # Verify that fetch_all_weather_images was called with command line threshold (0.008)
             mock_fetch_images.assert_called_once()
             args = mock_fetch_images.call_args[0]
             assert args[2] == 0.008  # command line threshold should override env
-            
+
     finally:
         # Clean up environment
-        if 'THRESHOLD' in os.environ:
-            del os.environ['THRESHOLD']
+        if "THRESHOLD" in os.environ:
+            del os.environ["THRESHOLD"]
 
 
 # --- PIXEL_TOLERANCE -------------------------------------------------------
 
 REQUIRED_CLI = [
-    'test-feed.xml', 'test-images/', 'slack_webhook', 'slack_token', 'channel', 'discord_webhook',
+    "test-feed.xml",
+    "test-images/",
+    "slack_webhook",
+    "slack_token",
+    "channel",
+    "discord_webhook",
 ]
 
 
 def run_main_with_storms(extra_argv):
     """Run main() on the storms path and return the positional args fetch_all_weather_images got."""
-    with patch('weather.fetch_xml_feed') as mock_fetch, \
-         patch('weather.fetch_all_weather_images') as mock_fetch_images, \
-         patch('weather.generate_rss_feed'), \
-         patch('weather.upload_files_to_slack'), \
-         patch('weather.upload_files_to_discord'), \
-         patch('weather.setup_logging'), \
-         patch('sys.argv', ['weather.py', *REQUIRED_CLI, *extra_argv]):
+    with (
+        patch("weather.application.fetch_xml_feed") as mock_fetch,
+        patch("weather.application.fetch_all_weather_images") as mock_fetch_images,
+        patch("weather.application.generate_rss_feed"),
+        patch("weather.publishing.upload_files_to_slack"),
+        patch("weather.publishing.upload_files_to_discord"),
+        patch("weather.cli.setup_logging"),
+        patch("sys.argv", ["weather.py", *REQUIRED_CLI, *extra_argv]),
+    ):
         mock_fetch.return_value = (1, MagicMock())
         static_image = MagicMock()
-        static_image.image_type = 'static'
+        static_image.image_type = "static"
         static_image.is_new = False
         mock_fetch_images.return_value = [static_image]
 
@@ -378,18 +386,21 @@ def run_main_with_storms(extra_argv):
         return mock_fetch_images.call_args[0]
 
 
-@pytest.mark.parametrize('raw, expected', [
-    (None, PIXEL_TOLERANCE),
-    ('0', 0),
-    ('8', 8),
-    ('255', 255),
-    (5, 5),
-])
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        (None, PIXEL_TOLERANCE),
+        ("0", 0),
+        ("8", 8),
+        ("255", 255),
+        (5, 5),
+    ],
+)
 def test_parse_pixel_tolerance_valid(raw, expected):
     assert parse_pixel_tolerance(raw, argparse.ArgumentParser()) == expected
 
 
-@pytest.mark.parametrize('raw', ['abc', '', '1.5', '-1', '256', -1, 300])
+@pytest.mark.parametrize("raw", ["abc", "", "1.5", "-1", "256", -1, 300])
 def test_parse_pixel_tolerance_invalid(raw):
     with pytest.raises(SystemExit):
         parse_pixel_tolerance(raw, argparse.ArgumentParser())
@@ -401,46 +412,48 @@ def test_pixel_tolerance_defaults_when_unset():
 
 
 def test_pixel_tolerance_from_env():
-    with patch.dict(os.environ, {'PIXEL_TOLERANCE': '10'}):
+    with patch.dict(os.environ, {"PIXEL_TOLERANCE": "10"}):
         args = run_main_with_storms([])
     assert args[3] == 10
 
 
 def test_pixel_tolerance_from_env_file():
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.env', delete=False) as f:
-        f.write('PIXEL_TOLERANCE=12\n')
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".env", delete=False) as f:
+        f.write("PIXEL_TOLERANCE=12\n")
         env_file_path = f.name
     try:
-        args = run_main_with_storms(['--env-file', env_file_path])
+        args = run_main_with_storms(["--env-file", env_file_path])
     finally:
         os.unlink(env_file_path)
-        os.environ.pop('PIXEL_TOLERANCE', None)
+        os.environ.pop("PIXEL_TOLERANCE", None)
     assert args[3] == 12
 
 
 def test_pixel_tolerance_cli_overrides_env():
-    with patch.dict(os.environ, {'PIXEL_TOLERANCE': '10'}):
-        args = run_main_with_storms(['--pixel-tolerance', '4'])
+    with patch.dict(os.environ, {"PIXEL_TOLERANCE": "10"}):
+        args = run_main_with_storms(["--pixel-tolerance", "4"])
     assert args[3] == 4
 
 
 def test_pixel_tolerance_invalid_env_value_exits():
-    with patch.dict(os.environ, {'PIXEL_TOLERANCE': 'lots'}):
+    with patch.dict(os.environ, {"PIXEL_TOLERANCE": "lots"}):
         with pytest.raises(SystemExit):
             run_main_with_storms([])
 
 
 def test_pixel_tolerance_reaches_image_comparison_on_static_only_path():
     """The no-storms/formation-chance path forwards the configured tolerance too."""
-    with patch('weather.fetch_xml_feed') as mock_fetch, \
-         patch('weather.has_formation_chance', return_value=True), \
-         patch('weather.delete_storm_images'), \
-         patch('weather.process_single_image') as mock_process, \
-         patch('weather.generate_rss_feed'), \
-         patch('weather.upload_files_to_slack'), \
-         patch('weather.upload_files_to_discord'), \
-         patch('weather.setup_logging'), \
-         patch('sys.argv', ['weather.py', *REQUIRED_CLI, '--pixel-tolerance', '7']):
+    with (
+        patch("weather.application.fetch_xml_feed") as mock_fetch,
+        patch("weather.application.has_formation_chance", return_value=True),
+        patch("weather.application.delete_storm_images"),
+        patch("weather.application.process_single_image") as mock_process,
+        patch("weather.application.generate_rss_feed"),
+        patch("weather.publishing.upload_files_to_slack"),
+        patch("weather.publishing.upload_files_to_discord"),
+        patch("weather.cli.setup_logging"),
+        patch("sys.argv", ["weather.py", *REQUIRED_CLI, "--pixel-tolerance", "7"]),
+    ):
         mock_fetch.return_value = (0, MagicMock())
         static_image = MagicMock()
         static_image.is_new = False
@@ -448,4 +461,4 @@ def test_pixel_tolerance_reaches_image_comparison_on_static_only_path():
 
         main()
 
-        assert mock_process.call_args.kwargs['pixel_tolerance'] == 7
+        assert mock_process.call_args.kwargs["pixel_tolerance"] == 7
