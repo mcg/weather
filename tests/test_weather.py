@@ -1,0 +1,788 @@
+import unittest
+import tempfile
+import os
+import shutil
+from unittest.mock import Mock, patch, mock_open
+from PIL import Image, ImageSequence
+from bs4 import BeautifulSoup
+from xml.etree import ElementTree
+
+# Import the functions we want to test
+from weather.feeds import (
+    fetch_xml_feed,
+    extract_storm_info,
+    find_speg_model,
+    find_cyclones_in_feed,
+    has_formation_chance,
+    generate_rss_feed,
+)
+from weather.images import (
+    images_are_different,
+    update_gif,
+    process_single_image,
+    delete_images,
+    delete_storm_images,
+)
+from weather.application import fetch_all_weather_images
+from weather.publishing import upload_files_to_slack, upload_files_to_discord
+from weather.models import WeatherImage
+from weather.cli import setup_logging
+
+
+class TestWeatherFunctions(unittest.TestCase):
+    """Test suite for weather.py functions."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.temp_dir = tempfile.mkdtemp()
+        self.test_image_path = os.path.join(self.temp_dir, "test_image.png")
+        self.test_gif_path = os.path.join(self.temp_dir, "test_image.gif")
+
+        # Create a simple test image
+        test_img = Image.new("RGB", (100, 100), color="red")
+        test_img.save(self.test_image_path)
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        shutil.rmtree(self.temp_dir)
+
+    @patch("weather.images.requests.get")
+    def test_fetch_xml_feed_no_storms(self, mock_get):
+        """Test fetching XML feed when no storms are expected."""
+        mock_response = Mock()
+        mock_response.content = b"""<?xml version="1.0" encoding="UTF-8"?>
+        <rss><channel>
+        <description>Tropical cyclone formation is not expected during the next 7 days</description>
+        </channel></rss>"""
+        mock_get.return_value = mock_response
+
+        no_storms, soup = fetch_xml_feed()
+
+        self.assertEqual(no_storms, 0)  # Expecting count of storms (0 when no storms)
+        self.assertIsInstance(soup, BeautifulSoup)
+        mock_get.assert_called_once_with(
+            "https://www.nhc.noaa.gov/index-at.xml", timeout=30
+        )
+
+    @patch("weather.images.requests.get")
+    def test_fetch_xml_feed_with_storms(self, mock_get):
+        """Test fetching XML feed with active storms."""
+        mock_response = Mock()
+        mock_response.content = b"""<?xml version="1.0" encoding="UTF-8"?>
+        <rss><channel>
+        <item><title>Hurricane Maria Graphics</title></item>
+        </channel></rss>"""
+        mock_get.return_value = mock_response
+
+        no_storms, soup = fetch_xml_feed()
+
+        self.assertEqual(
+            no_storms, 1
+        )  # Expecting count of storms (1 when there are storms)
+        self.assertIsInstance(soup, BeautifulSoup)
+
+    def test_has_formation_chance_true(self):
+        """Test detecting a formation chance mentioned in the outlook."""
+        xml_content = """<?xml version="1.0" encoding="UTF-8"?>
+        <rss><channel>
+        <item>
+            <title>Atlantic Tropical Weather Outlook</title>
+            <description><![CDATA[A tropical wave is expected to move off the west coast of Africa.<br />
+            * Formation chance through 48 hours...low...near 0 percent.<br />
+            * Formation chance through 7 days...low...20 percent.]]></description>
+        </item>
+        </channel></rss>"""
+        soup = BeautifulSoup(xml_content, "xml")
+
+        self.assertTrue(has_formation_chance(soup))
+
+    def test_has_formation_chance_false(self):
+        """Test no formation chance when the outlook has none mentioned."""
+        xml_content = """<?xml version="1.0" encoding="UTF-8"?>
+        <rss><channel>
+        <item>
+            <title>Atlantic Tropical Weather Outlook</title>
+            <description><![CDATA[Tropical cyclone formation is not expected during the next 7 days.]]></description>
+        </item>
+        </channel></rss>"""
+        soup = BeautifulSoup(xml_content, "xml")
+
+        self.assertFalse(has_formation_chance(soup))
+
+    def test_has_formation_chance_no_outlook_item(self):
+        """Test no formation chance when there's no outlook item at all."""
+        xml_content = """<?xml version="1.0" encoding="UTF-8"?>
+        <rss><channel>
+        <item><title>Hurricane Maria Graphics</title></item>
+        </channel></rss>"""
+        soup = BeautifulSoup(xml_content, "xml")
+
+        self.assertFalse(has_formation_chance(soup))
+
+    def test_extract_storm_info_hurricane(self):
+        """Test extracting hurricane information from title element."""
+        mock_title = BeautifulSoup(
+            "<title>Hurricane Maria Graphics</title>", "xml"
+        ).title
+
+        result = extract_storm_info(mock_title)
+
+        self.assertIsNotNone(result)
+        if result is not None:
+            self.assertEqual(result["name"], "Maria")
+            self.assertEqual(result["type"], "Hurricane")
+
+    def test_extract_storm_info_tropical_storm(self):
+        """Test extracting tropical storm information from title element."""
+        mock_title = BeautifulSoup(
+            "<title>Tropical Storm Alex Graphics</title>", "xml"
+        ).title
+
+        result = extract_storm_info(mock_title)
+
+        self.assertIsNotNone(result)
+        if result is not None:
+            self.assertEqual(result["name"], "Alex")
+            self.assertEqual(result["type"], "Tropical Storm")
+
+    def test_extract_storm_info_invalid(self):
+        """Test extracting storm info from invalid title."""
+        mock_title = BeautifulSoup("<title>Random Weather Update</title>", "xml").title
+
+        result = extract_storm_info(mock_title)
+
+        self.assertIsNone(result)
+
+    def test_find_speg_model(self):
+        """Test finding SPEG model from XML soup."""
+        xml_content = """<?xml version="1.0" encoding="UTF-8"?>
+        <rss xmlns:nhc="https://www.nhc.noaa.gov">
+        <channel>
+        <item>
+            <title>Summary for Hurricane Maria</title>
+            <nhc:Cyclone>
+                <nhc:atcf>AL152017</nhc:atcf>
+            </nhc:Cyclone>
+        </item>
+        </channel>
+        </rss>"""
+
+        soup = BeautifulSoup(xml_content, "xml")
+        result = find_speg_model(soup, "Maria")
+
+        self.assertEqual(result, "al152017")
+
+    def test_find_speg_model_not_found(self):
+        """Test finding SPEG model when none exists."""
+        xml_content = """<?xml version="1.0" encoding="UTF-8"?>
+        <rss><channel></channel></rss>"""
+
+        soup = BeautifulSoup(xml_content, "xml")
+        result = find_speg_model(soup, "Maria")
+
+        self.assertIsNone(result)
+
+    def test_find_cyclones_in_feed(self):
+        """Test finding cyclones in XML feed."""
+        xml_content = """<?xml version="1.0" encoding="UTF-8"?>
+        <rss xmlns:nhc="https://www.nhc.noaa.gov">
+        <channel>
+        <item>
+            <title>Hurricane Maria Graphics</title>
+            <description><![CDATA[
+                <img src="https://example.com/maria_5day_cone_with_line_and_wind.png" />
+            ]]></description>
+        </item>
+        <item>
+            <title>Summary for Hurricane Maria</title>
+            <nhc:Cyclone>
+                <nhc:atcf>AL152017</nhc:atcf>
+            </nhc:Cyclone>
+        </item>
+        </channel>
+        </rss>"""
+
+        soup = BeautifulSoup(xml_content, "xml")
+        cyclones = find_cyclones_in_feed(soup)
+
+        self.assertEqual(len(cyclones), 1)
+        self.assertEqual(cyclones[0]["storm_name"], "Maria")
+        self.assertEqual(cyclones[0]["storm_type"], "Hurricane")
+        self.assertEqual(cyclones[0]["speg_model"], "al152017")
+
+    def test_images_are_different_no_existing_file(self):
+        """Test image comparison when existing file doesn't exist."""
+        new_image_path = self.test_image_path
+        non_existent_path = os.path.join(self.temp_dir, "nonexistent.png")
+
+        result = images_are_different(new_image_path, non_existent_path)
+
+        self.assertTrue(result)
+
+    def test_images_are_different_same_images(self):
+        """Test image comparison with identical images."""
+        # Create two identical images
+        img1_path = os.path.join(self.temp_dir, "img1.png")
+        img2_path = os.path.join(self.temp_dir, "img2.png")
+
+        test_img = Image.new("RGB", (100, 100), color="blue")
+        test_img.save(img1_path)
+        test_img.save(img2_path)
+
+        result = images_are_different(img1_path, img2_path)
+
+        self.assertFalse(result)
+
+    def test_images_are_different_different_images(self):
+        """Test image comparison with different images."""
+        img1_path = os.path.join(self.temp_dir, "img1.png")
+        img2_path = os.path.join(self.temp_dir, "img2.png")
+
+        img1 = Image.new("RGB", (100, 100), color="blue")
+        img2 = Image.new("RGB", (100, 100), color="red")
+        img1.save(img1_path)
+        img2.save(img2_path)
+
+        result = images_are_different(img1_path, img2_path)
+
+        self.assertTrue(result)
+
+    def test_images_are_different_zero_threshold_detects_tiny_change(self):
+        """A tiny change is ignored at the default threshold but detected at 0.0."""
+        img1_path = os.path.join(self.temp_dir, "img1.png")
+        img2_path = os.path.join(self.temp_dir, "img2.png")
+
+        img1 = Image.new("RGB", (100, 100), color="white")
+        img2 = Image.new("RGB", (100, 100), color="white")
+        img2.putpixel((0, 0), (255, 0, 0))
+        img1.save(img1_path)
+        img2.save(img2_path)
+
+        self.assertFalse(images_are_different(img1_path, img2_path))
+        self.assertTrue(images_are_different(img1_path, img2_path, threshold=0.0))
+
+    def _save_noisy_pair(self, noise_pixels, marker_pixels):
+        """Save a base image and a copy with faint noise plus an optional strong marker."""
+        base_path = os.path.join(self.temp_dir, "base.png")
+        changed_path = os.path.join(self.temp_dir, "changed.png")
+        base = Image.new("RGB", (100, 100), color=(100, 150, 200))
+        changed = base.copy()
+        for i in range(noise_pixels):
+            changed.putpixel((i % 100, i // 100), (103, 153, 203))  # +3 gray levels
+        for i in range(marker_pixels):
+            changed.putpixel((i % 100, 99 - i // 100), (255, 0, 0))
+        base.save(base_path)
+        changed.save(changed_path)
+        return base_path, changed_path
+
+    def test_images_are_different_ignores_faint_noise(self):
+        """Faint rendering noise over 5% of pixels must not count as a change."""
+        base_path, noisy_path = self._save_noisy_pair(noise_pixels=500, marker_pixels=0)
+
+        self.assertFalse(images_are_different(noisy_path, base_path, threshold=0.001))
+
+    def test_images_are_different_detects_small_real_change_despite_noise(self):
+        """A small real change (0.4% of pixels) is found even with 5% faint noise."""
+        base_path, changed_path = self._save_noisy_pair(
+            noise_pixels=500, marker_pixels=40
+        )
+
+        self.assertTrue(images_are_different(changed_path, base_path, threshold=0.001))
+
+    def test_images_are_different_zero_tolerance_counts_noise(self):
+        """With pixel_tolerance=0 any pixel difference counts, as before."""
+        base_path, noisy_path = self._save_noisy_pair(noise_pixels=500, marker_pixels=0)
+
+        self.assertTrue(
+            images_are_different(
+                noisy_path, base_path, threshold=0.001, pixel_tolerance=0
+            )
+        )
+
+    @patch("weather.images.ImageChops.difference")
+    def test_images_are_different_with_none_pixels(self, mock_difference):
+        """Test image comparison when pixel data contains None values."""
+        img1_path = os.path.join(self.temp_dir, "img1.png")
+        img2_path = os.path.join(self.temp_dir, "img2.png")
+
+        # Create test images
+        img1 = Image.new("RGB", (100, 100), color="blue")
+        img2 = Image.new("RGB", (100, 100), color="red")
+        img1.save(img1_path)
+        img2.save(img2_path)
+
+        # Create a mock diff image that returns None values in getdata()
+        mock_diff = Mock()
+        mock_diff_gray = Mock()
+        mock_diff.convert.return_value = mock_diff_gray
+
+        # Mock pixel data with None values mixed in
+        mock_pixel_data = [0, 10, None, 5, None, 20, 0, None, 15]
+        mock_diff_gray.getdata.return_value = mock_pixel_data
+
+        mock_difference.return_value = mock_diff
+
+        # This should not raise an exception despite None values
+        result = images_are_different(img1_path, img2_path)
+
+        # Should return True because there are non-None pixels > 0
+        self.assertTrue(result)
+
+        # Verify the difference function was called
+        mock_difference.assert_called_once()
+
+    def test_update_gif_new_file(self):
+        """Test creating a new GIF file."""
+        gif_path = os.path.join(self.temp_dir, "new.gif")
+
+        update_gif(self.test_image_path, gif_path)
+
+        self.assertTrue(os.path.exists(gif_path))
+
+    def test_update_gif_existing_file(self):
+        """Test updating an existing GIF file."""
+        # Create initial GIF
+        gif_path = os.path.join(self.temp_dir, "existing.gif")
+        initial_img = Image.new("RGB", (100, 100), color="green")
+        initial_img.save(gif_path, "GIF")
+
+        update_gif(self.test_image_path, gif_path)
+
+        self.assertTrue(os.path.exists(gif_path))
+
+    def test_update_gif_preserves_frame_order_and_animation_metadata(self):
+        colors = ["red", "green", "blue"]
+        for color in colors:
+            Image.new("RGB", (10, 10), color).save(self.test_image_path)
+            update_gif(self.test_image_path, self.test_gif_path)
+
+        with Image.open(self.test_gif_path) as gif:
+            self.assertEqual(gif.n_frames, 3)
+            self.assertEqual(gif.info["loop"], 0)
+            pixels = []
+            durations = []
+            for frame in ImageSequence.Iterator(gif):
+                pixels.append(frame.convert("RGB").getpixel((0, 0)))
+                durations.append(frame.info["duration"])
+        self.assertEqual(pixels, [(255, 0, 0), (0, 128, 0), (0, 0, 255)])
+        self.assertEqual(durations, [500, 500, 500])
+
+    def test_update_gif_keeps_only_the_newest_frames(self):
+        for color in ["red", "green", "blue", "yellow"]:
+            Image.new("RGB", (10, 10), color).save(self.test_image_path)
+            update_gif(self.test_image_path, self.test_gif_path, max_frames=2)
+
+        with Image.open(self.test_gif_path) as gif:
+            pixels = [
+                frame.convert("RGB").getpixel((0, 0))
+                for frame in ImageSequence.Iterator(gif)
+            ]
+        self.assertEqual(pixels, [(0, 0, 255), (255, 255, 0)])
+
+    @patch("weather.images.requests.get")
+    def test_process_single_image_from_cache_unchanged(self, mock_get):
+        """A cached body identical to the local file is reported as unchanged."""
+        mock_response = Mock()
+        with open(self.test_image_path, "rb") as f:
+            mock_response.content = f.read()
+        mock_response.from_cache = True
+        mock_get.return_value = mock_response
+
+        result = process_single_image(
+            "http://example.com/test.png", "test_image", self.temp_dir
+        )
+
+        self.assertIsInstance(result, WeatherImage)
+        self.assertEqual(result.name, "test_image")
+        self.assertFalse(result.is_new)
+        self.assertEqual(result.image_type, "processed")
+
+    @patch("weather.images.update_gif")
+    @patch("weather.images.images_are_different")
+    @patch("weather.images.requests.get")
+    def test_process_single_image_new_image(
+        self, mock_get, mock_images_diff, mock_update_gif
+    ):
+        """Test processing a new/different image."""
+        mock_response = Mock()
+        mock_response.content = b"fake_image_data"
+        mock_response.from_cache = False
+        mock_get.return_value = mock_response
+
+        mock_images_diff.return_value = True
+
+        result = process_single_image(
+            "http://example.com/test.png", "test_image", self.temp_dir
+        )
+
+        self.assertIsInstance(result, WeatherImage)
+        self.assertTrue(result.is_new)
+        self.assertEqual(result.image_type, "processed")
+        mock_update_gif.assert_called_once()
+
+    @patch("weather.images.update_gif")
+    @patch("weather.images.images_are_different")
+    @patch("weather.images.requests.get")
+    def test_process_single_image_passes_tolerance_to_comparison(
+        self, mock_get, mock_images_diff, mock_update_gif
+    ):
+        """The configured threshold and pixel tolerance reach images_are_different."""
+        mock_response = Mock()
+        mock_response.content = b"fake_image_data"
+        mock_response.from_cache = False
+        mock_get.return_value = mock_response
+        mock_images_diff.return_value = False
+
+        process_single_image(
+            "http://example.com/test.png",
+            "test_image",
+            self.temp_dir,
+            threshold=0.002,
+            pixel_tolerance=5,
+        )
+
+        _, _, threshold, pixel_tolerance = mock_images_diff.call_args[0]
+        self.assertEqual(threshold, 0.002)
+        self.assertEqual(pixel_tolerance, 5)
+
+    @patch("weather.application.find_cyclones_in_feed")
+    @patch("weather.application.process_single_image")
+    def test_fetch_all_weather_images(self, mock_process_image, mock_find_cyclones):
+        """Test fetching all weather images."""
+        mock_soup = Mock()
+
+        # Mock cyclones data
+        mock_find_cyclones.return_value = [
+            {
+                "storm_name": "Maria",
+                "storm_type": "Hurricane",
+                "image_url": "http://example.com/maria_cone.png",
+                "speg_model": "al152017",
+            }
+        ]
+
+        # Mock process_single_image to return WeatherImage objects
+        def mock_process_side_effect(
+            url, name, image_dir, threshold=0.001, pixel_tolerance=16
+        ):
+            if "two_atl_7d0" in name:
+                img = WeatherImage(
+                    name,
+                    f"{image_dir}/{name}.png",
+                    f"{image_dir}/{name}.gif",
+                    url,
+                    True,
+                    "static",
+                )
+            elif "cone" in name:
+                img = WeatherImage(
+                    name,
+                    f"{image_dir}/{name}.png",
+                    f"{image_dir}/{name}.gif",
+                    url,
+                    True,
+                    "cone",
+                )
+            else:
+                img = WeatherImage(
+                    name,
+                    f"{image_dir}/{name}.png",
+                    f"{image_dir}/{name}.gif",
+                    url,
+                    True,
+                    "speg",
+                )
+            return img
+
+        mock_process_image.side_effect = mock_process_side_effect
+
+        images = fetch_all_weather_images(mock_soup, self.temp_dir)
+
+        # Should have static + cone + speg images
+        self.assertEqual(len(images), 3)
+        self.assertEqual(images[0].image_type, "static")
+        self.assertEqual(images[1].image_type, "cone")
+        self.assertEqual(images[2].image_type, "speg")
+
+    @patch("weather.feeds.FeedGenerator")
+    def test_generate_rss_feed(self, mock_fg_class):
+        """Test RSS feed generation."""
+        mock_fg = Mock()
+        mock_fg_class.return_value = mock_fg
+        mock_fe = Mock()
+        mock_fg.add_entry.return_value = mock_fe
+
+        static_image = WeatherImage(
+            "test_image",
+            self.test_image_path,
+            self.test_gif_path,
+            "http://example.com/test.png",
+            True,
+            "static",
+        )
+
+        rss_path = os.path.join(self.temp_dir, "test.rss")
+
+        generate_rss_feed(static_image, rss_path)
+
+        mock_fg.title.assert_called_once()
+        mock_fg.description.assert_called_once()
+        mock_fg.link.assert_called_once()
+        mock_fe.title.assert_called_once()
+        mock_fe.link.assert_called_once()
+        mock_fe.description.assert_called_once()
+        mock_fg.rss_file.assert_called_once_with(rss_path)
+
+    @patch("weather.feeds.time.time", return_value=1791350400)
+    def test_generate_rss_feed_real_output(self, mock_time):
+        image = WeatherImage(
+            "outlook",
+            self.test_image_path,
+            self.test_gif_path,
+            "https://example.com/outlook.png",
+            True,
+            "static",
+        )
+        rss_path = os.path.join(self.temp_dir, "actual.rss")
+
+        generate_rss_feed(image, rss_path)
+
+        channel = ElementTree.parse(rss_path).getroot().find("channel")
+        self.assertIsNotNone(channel)
+        self.assertEqual(
+            channel.findtext("title"),
+            "Seven-Day Atlantic Graphical Tropical Weather Outlook",
+        )
+        self.assertEqual(channel.findtext("link"), image.url)
+        items = channel.findall("item")
+        self.assertEqual(len(items), 1)
+        item = items[0]
+        self.assertEqual(item.findtext("title"), "Weather Image")
+        self.assertEqual(item.findtext("link"), image.url)
+        self.assertEqual(item.findtext("guid"), f"{image.url}#1791350400")
+        self.assertIn(
+            f'<img src="{image.url}#1791350400"', item.findtext("description")
+        )
+        self.assertEqual(
+            item.find("enclosure").attrib,
+            {
+                "url": image.url,
+                "length": str(os.path.getsize(self.test_image_path)),
+                "type": "image/png",
+            },
+        )
+
+    def test_generate_rss_feed_missing_image_has_zero_length_enclosure(self):
+        image = WeatherImage(
+            "missing",
+            os.path.join(self.temp_dir, "missing.png"),
+            self.test_gif_path,
+            "https://example.com/missing.png",
+            True,
+            "static",
+        )
+        rss_path = os.path.join(self.temp_dir, "missing.rss")
+
+        generate_rss_feed(image, rss_path)
+
+        enclosure = ElementTree.parse(rss_path).find("channel/item/enclosure")
+        self.assertEqual(enclosure.get("length"), "0")
+        self.assertEqual(enclosure.get("url"), image.url)
+
+    @patch("weather.publishing.WebClient")
+    def test_upload_files_to_slack(self, mock_webclient_class):
+        """Test uploading files to Slack."""
+        mock_client = Mock()
+        mock_webclient_class.return_value = mock_client
+
+        images = [
+            WeatherImage(
+                "static",
+                self.test_image_path,
+                self.test_gif_path,
+                "url",
+                True,
+                "static",
+            ),
+            WeatherImage(
+                "cone", self.test_image_path, self.test_gif_path, "url", True, "cone"
+            ),
+        ]
+
+        upload_files_to_slack(images, "fake_token", "fake_channel")
+
+        mock_webclient_class.assert_called_once_with(token="fake_token")
+        mock_client.files_upload_v2.assert_called_once()
+
+    @patch("weather.publishing.SyncWebhook")
+    def test_upload_files_to_discord(self, mock_webhook_class):
+        """Test uploading files to Discord."""
+        mock_webhook = Mock()
+        mock_webhook_class.from_url.return_value = mock_webhook
+
+        images = [
+            WeatherImage(
+                "static",
+                self.test_image_path,
+                self.test_gif_path,
+                "url",
+                True,
+                "static",
+            )
+        ]
+
+        # Mock file opening
+        with patch("builtins.open", mock_open(read_data=b"fake_file_data")):
+            upload_files_to_discord(images, "fake_webhook_url")
+
+        mock_webhook_class.from_url.assert_called_once_with("fake_webhook_url")
+        mock_webhook.send.assert_called()
+
+    def test_delete_images(self):
+        """Test deleting images from directory."""
+        # Create test files
+        png_file = os.path.join(self.temp_dir, "test.png")
+        gif_file = os.path.join(self.temp_dir, "test.gif")
+        txt_file = os.path.join(self.temp_dir, "test.txt")
+
+        with open(png_file, "w") as f:
+            f.write("fake png")
+        with open(gif_file, "w") as f:
+            f.write("fake gif")
+        with open(txt_file, "w") as f:
+            f.write("fake txt")
+
+        delete_images(self.temp_dir)
+
+        # PNG and GIF should be deleted, TXT should remain
+        self.assertFalse(os.path.exists(png_file))
+        self.assertFalse(os.path.exists(gif_file))
+        self.assertTrue(os.path.exists(txt_file))
+
+    def test_has_image_files_true(self):
+        """Test has_image_files returns True when PNG/GIF files exist."""
+        from weather.images import has_image_files
+
+        png_file = os.path.join(self.temp_dir, "test.png")
+        with open(png_file, "w") as f:
+            f.write("fake png")
+
+        self.assertTrue(has_image_files(self.temp_dir))
+
+    def test_has_image_files_false(self):
+        """Test has_image_files returns False when no PNG/GIF files exist."""
+        from weather.images import has_image_files
+
+        empty_dir = tempfile.mkdtemp()
+        try:
+            txt_file = os.path.join(empty_dir, "test.txt")
+            with open(txt_file, "w") as f:
+                f.write("fake txt")
+
+            self.assertFalse(has_image_files(empty_dir))
+        finally:
+            shutil.rmtree(empty_dir)
+
+    def test_delete_storm_images(self):
+        """Test deleting storm images while preserving static images."""
+        # Create test files
+        static_png = os.path.join(self.temp_dir, "two_atl_7d0.png")
+        static_gif = os.path.join(self.temp_dir, "two_atl_7d0.gif")
+        storm_png = os.path.join(
+            self.temp_dir, "Maria_5day_cone_with_line_and_wind.png"
+        )
+        storm_gif = os.path.join(
+            self.temp_dir, "Maria_5day_cone_with_line_and_wind.gif"
+        )
+        models_png = os.path.join(self.temp_dir, "Maria_hurricane_models.png")
+        models_gif = os.path.join(self.temp_dir, "Maria_hurricane_models.gif")
+        txt_file = os.path.join(self.temp_dir, "test.txt")
+
+        # Create all test files
+        for file_path in [
+            static_png,
+            static_gif,
+            storm_png,
+            storm_gif,
+            models_png,
+            models_gif,
+            txt_file,
+        ]:
+            with open(file_path, "w") as f:
+                f.write("fake content")
+
+        delete_storm_images(self.temp_dir)
+
+        # Static images should remain
+        self.assertTrue(os.path.exists(static_png))
+        self.assertTrue(os.path.exists(static_gif))
+
+        # Storm images should be deleted
+        self.assertFalse(os.path.exists(storm_png))
+        self.assertFalse(os.path.exists(storm_gif))
+        self.assertFalse(os.path.exists(models_png))
+        self.assertFalse(os.path.exists(models_gif))
+
+        # Non-image files should remain
+        self.assertTrue(os.path.exists(txt_file))
+
+    def test_delete_storm_images_no_static_files(self):
+        """Test deleting storm images when no static files exist."""
+        # Create only storm files
+        storm_png = os.path.join(self.temp_dir, "Alex_5day_cone_with_line_and_wind.png")
+        storm_gif = os.path.join(self.temp_dir, "Alex_5day_cone_with_line_and_wind.gif")
+
+        with open(storm_png, "w") as f:
+            f.write("fake png")
+        with open(storm_gif, "w") as f:
+            f.write("fake gif")
+
+        delete_storm_images(self.temp_dir)
+
+        # Storm images should be deleted
+        self.assertFalse(os.path.exists(storm_png))
+        self.assertFalse(os.path.exists(storm_gif))
+
+    def test_weather_image_dataclass(self):
+        """Test WeatherImage dataclass."""
+        image = WeatherImage(
+            name="test",
+            png_path="/path/to/test.png",
+            gif_path="/path/to/test.gif",
+            url="http://example.com/test.png",
+            is_new=True,
+            image_type="static",
+        )
+
+        self.assertEqual(image.name, "test")
+        self.assertEqual(image.png_path, "/path/to/test.png")
+        self.assertEqual(image.gif_path, "/path/to/test.gif")
+        self.assertEqual(image.url, "http://example.com/test.png")
+        self.assertTrue(image.is_new)
+        self.assertEqual(image.image_type, "static")
+
+    @patch("weather.cli.logging.basicConfig")
+    def test_setup_logging_no_file(self, mock_basic_config):
+        """Test logging setup without file."""
+        setup_logging()
+
+        mock_basic_config.assert_called_once()
+        args, kwargs = mock_basic_config.call_args
+        self.assertEqual(len(kwargs["handlers"]), 1)  # Only StreamHandler
+
+    @patch("weather.cli.logging.FileHandler")
+    @patch("weather.cli.logging.basicConfig")
+    def test_setup_logging_with_file(self, mock_basic_config, mock_file_handler):
+        """Test logging setup with file."""
+        mock_file_handler.return_value = Mock()
+
+        log_file = os.path.join(self.temp_dir, "logs", "test.log")
+        setup_logging(log_file)
+
+        self.assertTrue(os.path.isdir(os.path.dirname(log_file)))
+        mock_basic_config.assert_called_once()
+        mock_file_handler.assert_called_once_with(log_file)
+
+
+if __name__ == "__main__":
+    unittest.main()

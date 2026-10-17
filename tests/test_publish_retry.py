@@ -16,14 +16,10 @@ from unittest.mock import Mock, patch
 import requests
 from PIL import Image
 
-from weather import (
-    WeatherImage,
-    commit_images,
-    fetch_all_weather_images,
-    process_single_image,
-    publish_images,
-    rollback_images,
-)
+from weather.models import WeatherImage
+from weather.images import commit_images, process_single_image, rollback_images
+from weather.application import fetch_all_weather_images
+from weather.publishing import publish_images
 
 URL = "https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png"
 
@@ -56,7 +52,9 @@ class RetryTestCase(unittest.TestCase):
         shutil.rmtree(self.dir)
 
     def process(self, content: bytes, from_cache: bool = False) -> WeatherImage:
-        with patch("weather.requests.get", return_value=response(content, from_cache)):
+        with patch(
+            "weather.images.requests.get", return_value=response(content, from_cache)
+        ):
             return process_single_image(URL, "two_atl_7d0", self.dir)
 
     def leftover_files(self) -> list[str]:
@@ -85,25 +83,33 @@ class TestProcessSingleImage(RetryTestCase):
 
     def test_http_error_does_not_touch_local_files(self) -> None:
         _ = self.process(png_bytes("blue"))
-        before = {name: read(os.path.join(self.dir, name)) for name in self.leftover_files()}
+        before = {
+            name: read(os.path.join(self.dir, name)) for name in self.leftover_files()
+        }
 
         error_response = response(b"<html>Not Found</html>")
         error_response.raise_for_status.side_effect = requests.HTTPError("404")
-        with patch("weather.requests.get", return_value=error_response):
+        with patch("weather.images.requests.get", return_value=error_response):
             with self.assertRaises(requests.HTTPError):
                 _ = process_single_image(URL, "two_atl_7d0", self.dir)
 
-        after = {name: read(os.path.join(self.dir, name)) for name in self.leftover_files()}
+        after = {
+            name: read(os.path.join(self.dir, name)) for name in self.leftover_files()
+        }
         self.assertEqual(before, after)
 
     def test_undecodable_body_restores_previous_files(self) -> None:
         _ = self.process(png_bytes("blue"))
-        before = {name: read(os.path.join(self.dir, name)) for name in self.leftover_files()}
+        before = {
+            name: read(os.path.join(self.dir, name)) for name in self.leftover_files()
+        }
 
         with self.assertRaises(Exception):
             _ = self.process(b"<html>not an image</html>")
 
-        after = {name: read(os.path.join(self.dir, name)) for name in self.leftover_files()}
+        after = {
+            name: read(os.path.join(self.dir, name)) for name in self.leftover_files()
+        }
         self.assertEqual(before, after)
 
     def test_undecodable_first_image_leaves_nothing_behind(self) -> None:
@@ -173,8 +179,8 @@ class TestPublishImages(RetryTestCase):
         _ = self.process(png_bytes("blue"))
         return self.process(png_bytes("red"))
 
-    @patch("weather.upload_files_to_discord")
-    @patch("weather.upload_files_to_slack")
+    @patch("weather.publishing.upload_files_to_discord")
+    @patch("weather.publishing.upload_files_to_slack")
     def test_success_commits(self, mock_slack: Mock, mock_discord: Mock) -> None:
         image = self.new_image()
 
@@ -184,8 +190,8 @@ class TestPublishImages(RetryTestCase):
         mock_discord.assert_called_once_with([image], "webhook")
         self.assertEqual(self.leftover_files(), ["two_atl_7d0.gif", "two_atl_7d0.png"])
 
-    @patch("weather.upload_files_to_discord")
-    @patch("weather.upload_files_to_slack")
+    @patch("weather.publishing.upload_files_to_discord")
+    @patch("weather.publishing.upload_files_to_slack")
     def test_nothing_to_upload(self, mock_slack: Mock, mock_discord: Mock) -> None:
         unchanged = WeatherImage("x", "x.png", "x.gif", "url", False, "static")
 
@@ -194,8 +200,8 @@ class TestPublishImages(RetryTestCase):
         mock_slack.assert_not_called()
         mock_discord.assert_not_called()
 
-    @patch("weather.upload_files_to_discord")
-    @patch("weather.upload_files_to_slack")
+    @patch("weather.publishing.upload_files_to_discord")
+    @patch("weather.publishing.upload_files_to_slack")
     def test_all_destinations_failing_rolls_back_and_raises(
         self, mock_slack: Mock, mock_discord: Mock
     ) -> None:
@@ -210,8 +216,8 @@ class TestPublishImages(RetryTestCase):
 
         self.assertEqual(read(self.png), old_body)
 
-    @patch("weather.upload_files_to_discord")
-    @patch("weather.upload_files_to_slack")
+    @patch("weather.publishing.upload_files_to_discord")
+    @patch("weather.publishing.upload_files_to_slack")
     def test_slack_failure_does_not_skip_discord(
         self, mock_slack: Mock, mock_discord: Mock
     ) -> None:
@@ -227,9 +233,28 @@ class TestPublishImages(RetryTestCase):
         self.assertEqual(read(self.png), new_body)
         self.assertEqual(self.leftover_files(), ["two_atl_7d0.gif", "two_atl_7d0.png"])
 
+    @patch("weather.publishing.upload_files_to_discord")
+    @patch("weather.publishing.upload_files_to_slack")
+    def test_discord_failure_keeps_successful_slack_upload(
+        self, mock_slack: Mock, mock_discord: Mock
+    ) -> None:
+        image = self.new_image()
+        new_body = read(self.png)
+        new_gif = read(self.gif)
+        mock_discord.side_effect = RuntimeError("discord down")
+
+        with self.assertRaisesRegex(RuntimeError, "discord down"):
+            publish_images([image], "token", "channel", "webhook")
+
+        mock_slack.assert_called_once_with([image], "token", "channel")
+        mock_discord.assert_called_once_with([image], "webhook")
+        self.assertEqual(read(self.png), new_body)
+        self.assertEqual(read(self.gif), new_gif)
+        self.assertEqual(self.leftover_files(), ["two_atl_7d0.gif", "two_atl_7d0.png"])
+
 
 class TestFetchAllWeatherImages(RetryTestCase):
-    @patch("weather.find_cyclones_in_feed")
+    @patch("weather.application.find_cyclones_in_feed")
     def test_cone_failure_does_not_block_static_image(self, mock_find: Mock) -> None:
         mock_find.return_value = [
             {
@@ -241,26 +266,29 @@ class TestFetchAllWeatherImages(RetryTestCase):
         ]
         static_body = png_bytes("red")
 
-        def fake_get(url: str) -> Mock:
+        def fake_get(url: str, *, timeout: int) -> Mock:
+            self.assertEqual(timeout, 30)
             if url == URL:
                 return response(static_body)
             not_found = response(b"<html>Not Found</html>")
             not_found.raise_for_status.side_effect = requests.HTTPError("404")
             return not_found
 
-        with patch("weather.requests.get", side_effect=fake_get):
+        with patch("weather.images.requests.get", side_effect=fake_get):
             images = fetch_all_weather_images(Mock(), self.dir)
 
         self.assertEqual([image.image_type for image in images], ["static"])
         self.assertTrue(images[0].is_new)
 
-    @patch("weather.find_cyclones_in_feed")
+    @patch("weather.application.find_cyclones_in_feed")
     def test_unexpected_failure_rolls_back_static_image(self, mock_find: Mock) -> None:
         old_body = png_bytes("blue")
         _ = self.process(old_body)
         mock_find.side_effect = RuntimeError("feed parsing blew up")
 
-        with patch("weather.requests.get", return_value=response(png_bytes("red"))):
+        with patch(
+            "weather.images.requests.get", return_value=response(png_bytes("red"))
+        ):
             with self.assertRaises(RuntimeError):
                 _ = fetch_all_weather_images(Mock(), self.dir)
 
@@ -270,9 +298,9 @@ class TestFetchAllWeatherImages(RetryTestCase):
 class TestStuckImageScenario(RetryTestCase):
     """The original bug: local NINE image, NOAA/HTTP cache has ISAIAS, first run fails."""
 
-    @patch("weather.upload_files_to_discord")
-    @patch("weather.upload_files_to_slack")
-    @patch("weather.find_cyclones_in_feed")
+    @patch("weather.publishing.upload_files_to_discord")
+    @patch("weather.publishing.upload_files_to_slack")
+    @patch("weather.application.find_cyclones_in_feed")
     def test_image_is_posted_on_a_later_run_after_failed_upload(
         self, mock_find: Mock, mock_slack: Mock, mock_discord: Mock
     ) -> None:
@@ -284,7 +312,7 @@ class TestStuckImageScenario(RetryTestCase):
         # Run 1: NOAA returns the new image, but both uploads fail.
         mock_slack.side_effect = RuntimeError("slack down")
         mock_discord.side_effect = RuntimeError("discord down")
-        with patch("weather.requests.get", return_value=response(isaias)):
+        with patch("weather.images.requests.get", return_value=response(isaias)):
             images = fetch_all_weather_images(Mock(), self.dir)
             with self.assertRaises(RuntimeError):
                 publish_images(images, "token", "channel", "webhook")
@@ -295,7 +323,10 @@ class TestStuckImageScenario(RetryTestCase):
         mock_discord.side_effect = None
         mock_slack.reset_mock()
         mock_discord.reset_mock()
-        with patch("weather.requests.get", return_value=response(isaias, from_cache=True)):
+        with patch(
+            "weather.images.requests.get",
+            return_value=response(isaias, from_cache=True),
+        ):
             images = fetch_all_weather_images(Mock(), self.dir)
             publish_images(images, "token", "channel", "webhook")
 
@@ -307,7 +338,10 @@ class TestStuckImageScenario(RetryTestCase):
         # Run 3: nothing changed, so nothing is posted again.
         mock_slack.reset_mock()
         mock_discord.reset_mock()
-        with patch("weather.requests.get", return_value=response(isaias, from_cache=True)):
+        with patch(
+            "weather.images.requests.get",
+            return_value=response(isaias, from_cache=True),
+        ):
             images = fetch_all_weather_images(Mock(), self.dir)
             publish_images(images, "token", "channel", "webhook")
 
