@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:georss="http://www.georss.org/georss"
+  xmlns:gml="http://www.opengis.net/gml"
+  xmlns:nhc="https://www.nhc.noaa.gov">
+  <channel>
+    <pubDate>Wed, 12 Aug 2026 18:19:10 GMT</pubDate>
+    <title>NHC Atlantic</title>
+    <description>Active tropical cyclones in the Atlantic, Caribbean, and the Gulf of America</description>
+    <link>https://www.nhc.noaa.gov/</link>
+    <copyright>none</copyright>
+    <managingEditor>nhcwebmaster@noaa.gov (NHC Webmaster)</managingEditor>
+    <language>en-us</language>
+    <webMaster>nhcwebmaster@noaa.gov (NHC Webmaster)</webMaster>
+    <image>
+      <url>https://www.nhc.noaa.gov/gifs/xml_logo_nhc.gif</url>
+      <link>https://www.nhc.noaa.gov/</link>
+      <title>NHC Atlantic</title>
+      <description>NOAA logo</description>
+      <width>95</width>
+      <height>45</height>
+    </image>
+    <item>
+      <title>Atlantic Tropical Weather Outlook</title>
+      <description>
+      <![CDATA[000<br />ABNT20 KNHC 121750<br />TWOAT <br /><br />Tropical Weather Outlook<br />NWS National Hurricane Center Miami FL<br />200 PM EDT Wed Aug 12 2026<br /><br />For the North Atlantic...Caribbean Sea and the Gulf of America:<br /><br />Active Systems:<br />The National Hurricane Center is issuing advisories on newly formed <br />Tropical Storm Cristobal, located over the Atlantic west-southwest <br />of the Azores.<br /><br />Central Tropical Atlantic (AL92):<br />An area of showers and thunderstorms associated with a tropical wave <br />is located about 950 miles west-southwest of the Cabo Verde <br />Islands. Environmental conditions are forecast to be conducive for <br />development during the next couple of days, and a tropical <br />depression will likely form while the system moves westward to <br />west-northwestward across the central tropical Atlantic.<br />* Formation chance through 48 hours...high...80 percent.<br />* Formation chance through 7 days...high...80 percent.<br /><br />Eastern Tropical Atlantic:<br />A tropical wave located several hundred miles south of the Cabo <br />Verde Islands is producing disorganized showers and thunderstorms. <br />Environmental conditions are forecast to be generally conducive for <br />some development of this system during the next several days while <br />it moves westward or west-northwestward across the eastern and <br />central tropical Atlantic.<br />* Formation chance through 48 hours...low...20 percent.<br />* Formation chance through 7 days...medium...40 percent.<br /><br />&&<br /><br />Public Advisories on Tropical Storm Cristobal are issued under WMO <br />header WTNT33 KNHC and under AWIPS header MIATCPAT3.<br />Forecast/Advisories on Tropical Storm Cristobal are issued under <br />WMO header WTNT23 KNHC and under AWIPS header MIATCMAT3.<br /><br />$$<br />Forecaster Adams/Pasch]]>
+      </description>
+      <pubDate>Wed, 12 Aug 2026 17:50:29 GMT</pubDate>
+      <link>https://www.nhc.noaa.gov/gtwo.php?basin=atlc</link>
+      <guid>https://www.nhc.noaa.gov/gtwo.php?basin=atlc&amp;202608121750</guid>
+      <author>nhcwebmaster@noaa.gov (NHC Webmaster)</author>
+    </item>
+    <item>
+      <title>Summary for Tropical Storm Cristobal (AT3/AL032026)</title>
+      <guid isPermaLink="false">summary-al032026-202608121449</guid>
+      <pubDate>Wed, 12 Aug 2026 14:49:55 GMT</pubDate>
+      <author>nhcwebmaster@noaa.gov (NHC Webmaster)</author>
+      <link>https://www.nhc.noaa.gov/text/refresh/MIATCPAT3+shtml/121449.shtml</link>
+      <description>...TROPICAL STORM CRISTOBAL FORMS OVER THE CENTRAL SUBTROPICAL ATLANTIC... As of 3:00 PM GMT Wed Aug 12 the center of Cristobal was located near 36.7, -43.0 with movement E at 25 mph. The minimum central pressure was 1008 mb with maximum sustained winds of about 45 mph.</description>
+      <nhc:Cyclone>
+        <nhc:center>36.7, -43.0</nhc:center>
+        <nhc:type>Tropical Storm</nhc:type>
+        <nhc:name>Cristobal</nhc:name>
+        <nhc:wallet>AT3</nhc:wallet>
+        <nhc:atcf>AL032026</nhc:atcf>
+        <nhc:datetime>3:00 PM GMT Wed Aug 12</nhc:datetime>
+        <nhc:movement>E at 25 mph</nhc:movement>
+        <nhc:pressure>1008 mb</nhc:pressure>
+        <nhc:wind>45 mph</nhc:wind>
+        <nhc:headline>...TROPICAL STORM CRISTOBAL FORMS OVER THE CENTRAL SUBTROPICAL ATLANTIC...</nhc:headline>
+      </nhc:Cyclone>
+    </item>
+    <item>
+      <title>Tropical Storm Cristobal Public Advisory Number 1</title>
+      <description>Issued at 300 PM GMT Wed Aug 12 2026 <![CDATA[<pre>000
+WTNT33 KNHC 121449
+TCPAT3
+ 
+BULLETIN
+Tropical Storm Cristobal Advisory Number   1
+NWS National Hurricane Center Miami FL       AL032026
+300 PM GMT Wed Aug 12 2026
+ 
+...TROPICAL STORM CRISTOBAL FORMS OVER THE CENTRAL SUBTROPICAL
+ATLANTIC...
+ 
+ 
+SUMMARY OF 300 PM GMT...1500 UTC...INFORMATION
+----------------------------------------------
+LOCATION...36.7N 43.0W
+ABOUT 880 MI...1420 KM W OF THE AZORES
+MAXIMUM SUSTAINED WINDS...45 MPH...75 KM/H
+PRESENT MOVEMENT...E OR 90 DEGREES AT 25 MPH...41 KM/H
+MINIMUM CENTRAL PRESSURE...1008 MB...29.77 INCHES
+ 
+ 
+WATCHES AND WARNINGS
+--------------------
+There are no coastal watches or warnings in effect.
+ 
+ 
+DISCUSSION AND OUTLOOK
+----------------------
+At 300 PM GMT (1500 UTC), the center of Tropical Storm Cristobal was 
+located near latitude 36.7 North, longitude 43.0 West. Cristobal is 
+moving quickly toward the east near 25 mph (41 km/h). A turn toward 
+the east-northeast and a slower forward motion is expected later 
+today and tonight.
+ 
+Maximum sustained winds are near 45 mph (75 km/h) with higher gusts.
+Slow weakening is forecast, and Cristobal is forecast to dissipate 
+on Thursday.
+ 
+Tropical-storm-force winds extend outward up to 90 miles (150 km)
+from the center.
+ 
+The estimated minimum central pressure is 1008 mb (29.77 inches).
+ 
+ 
+HAZARDS AFFECTING LAND
+----------------------
+None.
+ 
+ 
+NEXT ADVISORY
+-------------
+Next complete advisory at 900 PM GMT.
+ 
+$$
+Forecaster Adams/Cangialosi</pre>]]></description>
+          
+      <pubDate>Wed, 12 Aug 2026 14:49:55 GMT</pubDate>
+      <link>https://www.nhc.noaa.gov/text/refresh/MIATCPAT3+shtml/121449.shtml</link>
+      <guid>https://www.nhc.noaa.gov/text/refresh/MIATCPAT3+shtml/121449.shtml</guid>
+      <author>nhcwebmaster@noaa.gov (NHC Webmaster)</author>
+    </item>
+    <item>
+      <title>Tropical Storm Cristobal Forecast Advisory Number 1</title>
+      <description>Issued at 1500 UTC WED AUG 12 2026 <![CDATA[<pre>000
+WTNT23 KNHC 121449
+TCMAT3
+ 
+TROPICAL STORM CRISTOBAL FORECAST/ADVISORY NUMBER   1
+NWS NATIONAL HURRICANE CENTER MIAMI FL       AL032026
+1500 UTC WED AUG 12 2026
+ 
+TROPICAL STORM CENTER LOCATED NEAR 36.7N  43.0W AT 12/1500Z
+POSITION ACCURATE WITHIN  20 NM
+ 
+PRESENT MOVEMENT TOWARD THE EAST OR  90 DEGREES AT  22 KT
+ 
+ESTIMATED MINIMUM CENTRAL PRESSURE 1008 MB
+MAX SUSTAINED WINDS  40 KT WITH GUSTS TO  50 KT.
+34 KT.......  0NE  80SE   0SW   0NW.
+WINDS AND SEAS VARY GREATLY IN EACH QUADRANT.  RADII IN NAUTICAL
+MILES ARE THE LARGEST RADII EXPECTED ANYWHERE IN THAT QUADRANT.
+ 
+REPEAT...CENTER LOCATED NEAR 36.7N  43.0W AT 12/1500Z
+AT 12/1200Z CENTER WAS LOCATED NEAR 36.8N  43.9W
+ 
+FORECAST VALID 13/0000Z 37.4N  40.2W
+MAX WIND  35 KT...GUSTS  45 KT.
+34 KT...  0NE  60SE   0SW   0NW.
+ 
+FORECAST VALID 13/1200Z 38.5N  37.2W
+MAX WIND  30 KT...GUSTS  40 KT.
+ 
+FORECAST VALID 14/0000Z...DISSIPATED
+ 
+REQUEST FOR 3 HOURLY SHIP REPORTS WITHIN 300 MILES OF 36.7N  43.0W
+ 
+NEXT ADVISORY AT 12/2100Z
+ 
+$$
+FORECASTER ADAMS/CANGIALOSI</pre>]]></description>
+          
+      <pubDate>Wed, 12 Aug 2026 14:49:21 GMT</pubDate>
+      <link>https://www.nhc.noaa.gov/text/refresh/MIATCMAT3+shtml/121449.shtml</link>
+      <guid>https://www.nhc.noaa.gov/text/refresh/MIATCMAT3+shtml/121449.shtml</guid>
+      <author>nhcwebmaster@noaa.gov (NHC Webmaster)</author>
+    </item>
+    <item>
+      <title>Tropical Storm Cristobal Forecast Discussion Number 1</title>
+      <description>Issued at 300 PM GMT Wed Aug 12 2026 <![CDATA[<pre>000
+WTNT43 KNHC 121451
+TCDAT3
+ 
+Tropical Storm Cristobal Discussion Number   1
+NWS National Hurricane Center Miami FL       AL032026
+300 PM GMT Wed Aug 12 2026
+
+The circulation associated with the area of low pressure we have 
+been monitoring well east-northeast of Bermuda over the past several 
+days has become better defined today. A recent ASCAT pass revealed 
+an area of 35-40 kt winds southeast of the slightly elongated and 
+exposed center, within the region of convection. While the 
+convective organization has degraded since earlier this morning, 
+scatterometer data indicate that the system has achieved tropical 
+storm status, and it likely reached that threshold earlier this 
+morning. Therefore, advisories are being initiated on Tropical Storm 
+Cristobal, with the initial intensity set to 40 kt. 
+
+Cristobal is moving quickly eastward around 22 kt over marginally 
+favorable sea surface temperatures near 25 C. The storm is currently 
+positioned between a subtropical high to the south, and a ridge 
+extending over the north-central Atlantic to the northeast. A turn 
+toward the northeast, accompanied by a gradual decrease in forward 
+speed, is expected later today and tonight as Cristobal moves along 
+the southwestern periphery of the northern Atlantic ridge. Slow 
+weakening is forecast during this period as the storm moves over 
+progressively cooler waters and encounters increasingly dry 
+mid-level air and stronger northerly wind shear. Cristobal is 
+expected to be short-lived and dissipate on Thursday. The official 
+NHC track and intensity forecasts lie near the middle of the 
+consensus guidance and are closest to the HCCA solution.
+ 
+FORECAST POSITIONS AND MAX WINDS
+ 
+INIT  12/1500Z 36.7N  43.0W   40 KT  45 MPH
+ 12H  13/0000Z 37.4N  40.2W   35 KT  40 MPH
+ 24H  13/1200Z 38.5N  37.2W   30 KT  35 MPH
+ 36H  14/0000Z...DISSIPATED
+ 
+$$
+Forecaster Adams/Cangialosi</pre>]]></description>
+          
+      <pubDate>Wed, 12 Aug 2026 14:51:24 GMT</pubDate>
+      <link>https://www.nhc.noaa.gov/text/refresh/MIATCDAT3+shtml/121451.shtml</link>
+      <guid>https://www.nhc.noaa.gov/text/refresh/MIATCDAT3+shtml/121451.shtml</guid>
+      <author>nhcwebmaster@noaa.gov (NHC Webmaster)</author>
+    </item>
+    <item>
+      <title>Tropical Storm Cristobal Wind Speed Probabilities Number 1</title>
+      <description>Issued at 1500 UTC WED AUG 12 2026 <![CDATA[<pre>000
+FONT13 KNHC 121450
+PWSAT3
+                                                                    
+TROPICAL STORM CRISTOBAL WIND SPEED PROBABILITIES NUMBER   1        
+NWS NATIONAL HURRICANE CENTER MIAMI FL       AL032026               
+1500 UTC WED AUG 12 2026                                            
+                                                                    
+AT 1500Z THE CENTER OF TROPICAL STORM CRISTOBAL WAS LOCATED NEAR    
+LATITUDE 36.7 NORTH...LONGITUDE 43.0 WEST WITH MAXIMUM SUSTAINED    
+WINDS NEAR 40 KTS...45 MPH...75 KM/H.                               
+                                                                    
+Z INDICATES COORDINATED UNIVERSAL TIME (GREENWICH)                  
+   ATLANTIC STANDARD TIME (AST)...SUBTRACT 4 HOURS FROM Z TIME      
+   EASTERN  DAYLIGHT TIME (EDT)...SUBTRACT 4 HOURS FROM Z TIME      
+   CENTRAL  DAYLIGHT TIME (CDT)...SUBTRACT 5 HOURS FROM Z TIME      
+                                                                    
+WIND SPEED PROBABILITY TABLE FOR SPECIFIC LOCATIONS                 
+                                                                    
+CHANCES OF SUSTAINED (1-MINUTE AVERAGE) WIND SPEEDS OF AT LEAST     
+   ...34 KT (39 MPH... 63 KM/H)...                                  
+   ...50 KT (58 MPH... 93 KM/H)...                                  
+   ...64 KT (74 MPH...119 KM/H)...                                  
+FOR LOCATIONS AND TIME PERIODS DURING THE NEXT 5 DAYS               
+                                                                    
+PROBABILITIES FOR LOCATIONS ARE GIVEN AS OP(CP) WHERE               
+    OP  IS THE PROBABILITY OF THE EVENT BEGINNING DURING            
+        AN INDIVIDUAL TIME PERIOD (ONSET PROBABILITY)               
+   (CP) IS THE PROBABILITY OF THE EVENT OCCURRING BETWEEN           
+        12Z WED AND THE FORECAST HOUR (CUMULATIVE PROBABILITY)      
+                                                                    
+PROBABILITIES ARE GIVEN IN PERCENT                                  
+X INDICATES PROBABILITIES LESS THAN 1 PERCENT                       
+PROBABILITIES FOR 34 KT AND 50 KT ARE SHOWN AT A GIVEN LOCATION WHEN
+THE 5-DAY CUMULATIVE PROBABILITY IS AT LEAST 3 PERCENT.             
+PROBABILITIES FOR 34...50...64 KT SHOWN WHEN THE 5-DAY              
+64-KT CUMULATIVE PROBABILITY IS AT LEAST 1 PERCENT.                 
+                                                                    
+                                                                    
+  - - - - WIND SPEED PROBABILITIES FOR SELECTED LOCATIONS - - - -   
+                                                                    
+               FROM    FROM    FROM    FROM    FROM    FROM    FROM 
+  TIME       12Z WED 00Z THU 12Z THU 00Z FRI 12Z FRI 12Z SAT 12Z SUN
+PERIODS         TO      TO      TO      TO      TO      TO      TO  
+             00Z THU 12Z THU 00Z FRI 12Z FRI 12Z SAT 12Z SUN 12Z MON
+                                                                    
+FORECAST HOUR    (12)   (24)    (36)    (48)    (72)    (96)   (120)
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+LOCATION       KT                                                   
+                                                                    
+$$                                                                  
+FORECASTER ADAMS/CANGIALOSI</pre>]]></description>
+          
+      <pubDate>Wed, 12 Aug 2026 14:50:38 GMT</pubDate>
+      <link>https://www.nhc.noaa.gov/text/refresh/MIAPWSAT3+shtml/121450.shtml</link>
+      <guid>https://www.nhc.noaa.gov/text/refresh/MIAPWSAT3+shtml/121450.shtml</guid>
+      <author>nhcwebmaster@noaa.gov (NHC Webmaster)</author>
+    </item>
+    <item>
+      <title>Tropical Storm Cristobal Graphics</title>
+      <description>
+<![CDATA[
+
+<br />
+<br /><a href="https://www.nhc.noaa.gov/refresh/graphics_at3+shtml/152254.shtml?tswind120">
+<img src="https://www.nhc.noaa.gov/storm_graphics/AT03/AL032026_wind_probs_34_F120_sm2.png"
+alt="Tropical Storm Cristobal 34-Knot Wind Speed Probabilities" width="500" height="400" /> </a>
+<br />Wind Speed Probabilities last updated Wed, 12 Aug 2026 15:22:54 GMT
+]]>
+      </description>
+      <pubDate>Wed, 12 Aug 2026 15:22:54 GMT</pubDate>
+      <link>https://www.nhc.noaa.gov/refresh/graphics_at3+shtml/152254.shtml?cone</link>
+      <guid>https://www.nhc.noaa.gov/refresh/graphics_at3+shtml/152254.shtml?cone</guid>
+      <author>nhcwebmaster@noaa.gov (NHC Webmaster)</author>
+    </item>
+  </channel>
+</rss>
