@@ -5,311 +5,362 @@ from unittest.mock import patch, Mock
 from io import StringIO
 
 # Import the main function
-from weather import main
+from weather.cli import main
 
 
 class TestWeatherIntegration(unittest.TestCase):
     """Integration tests for the weather application."""
-    
+
     def setUp(self):
         """Set up test fixtures."""
         self.temp_dir = tempfile.mkdtemp()
-        self.rss_file = os.path.join(self.temp_dir, 'test.rss')
-        self.image_dir = os.path.join(self.temp_dir, 'images')
+        self.rss_file = os.path.join(self.temp_dir, "test.rss")
+        self.image_dir = os.path.join(self.temp_dir, "images")
         os.makedirs(self.image_dir, exist_ok=True)
-    
+
     def tearDown(self):
         """Clean up test fixtures."""
         import shutil
+
         shutil.rmtree(self.temp_dir)
-    
-    @patch('weather.upload_files_to_discord')
-    @patch('weather.upload_files_to_slack')
-    @patch('weather.generate_rss_feed')
-    @patch('weather.process_single_image')
-    @patch('weather.delete_storm_images')
-    @patch('weather.has_formation_chance')
-    @patch('weather.fetch_xml_feed')
-    @patch('sys.argv')
-    def test_main_no_storms_with_updated_static_image(self, mock_argv, mock_fetch_xml, 
-                                                     mock_has_formation_chance,
-                                                     mock_delete_storm_images, mock_process_image,
-                                                     mock_generate_rss, mock_upload_slack, 
-                                                     mock_upload_discord):
+
+    @patch("weather.publishing.upload_files_to_discord")
+    @patch("weather.publishing.upload_files_to_slack")
+    @patch("weather.application.generate_rss_feed")
+    @patch("weather.application.process_single_image")
+    @patch("weather.application.delete_storm_images")
+    @patch("weather.application.has_formation_chance")
+    @patch("weather.application.fetch_xml_feed")
+    @patch("sys.argv")
+    def test_main_no_storms_with_updated_static_image(
+        self,
+        mock_argv,
+        mock_fetch_xml,
+        mock_has_formation_chance,
+        mock_delete_storm_images,
+        mock_process_image,
+        mock_generate_rss,
+        mock_upload_slack,
+        mock_upload_discord,
+    ):
         """Test main function when no named storms exist but a formation chance is present."""
-        from weather import WeatherImage
-        
+        from weather.models import WeatherImage
+
         # Mock command line arguments
         mock_argv.__getitem__ = lambda s, i: [
-            'weather.py',
+            "weather.py",
             self.rss_file,
             self.image_dir,
-            'slack_webhook_url',
-            'slack_token',
-            'upload_channel',
-            'discord_webhook_url'
+            "slack_webhook_url",
+            "slack_token",
+            "upload_channel",
+            "discord_webhook_url",
         ][i]
         mock_argv.__len__ = lambda s: 7
-        
+
         # Mock no named storms, but a formation chance is present
         mock_fetch_xml.return_value = (0, Mock())  # no_storms=0 (count)
         mock_has_formation_chance.return_value = True
-        
+
         # Mock updated static image
-        static_image = WeatherImage('two_atl_7d0', 'path.png', 'path.gif', 'url', True, 'static')
+        static_image = WeatherImage(
+            "two_atl_7d0", "path.png", "path.gif", "url", True, "static"
+        )
         mock_process_image.return_value = static_image
-        
+
         main()
-        
+
         mock_fetch_xml.assert_called_once()
         mock_delete_storm_images.assert_called_once_with(self.image_dir)
         mock_process_image.assert_called_once()
         mock_generate_rss.assert_called_once_with(static_image, self.rss_file)
-        mock_upload_slack.assert_called_once_with([static_image], 'slack_token', 'upload_channel')
-        mock_upload_discord.assert_called_once_with([static_image], 'discord_webhook_url')
-    
-    @patch('weather.upload_files_to_discord')
-    @patch('weather.upload_files_to_slack')
-    @patch('weather.generate_rss_feed')
-    @patch('weather.process_single_image')
-    @patch('weather.delete_storm_images')
-    @patch('weather.has_formation_chance')
-    @patch('weather.fetch_xml_feed')
-    @patch('sys.argv')
-    def test_main_no_storms_with_unchanged_static_image(self, mock_argv, mock_fetch_xml, 
-                                                       mock_has_formation_chance,
-                                                       mock_delete_storm_images, mock_process_image,
-                                                       mock_generate_rss, mock_upload_slack, 
-                                                       mock_upload_discord):
+        mock_upload_slack.assert_called_once_with(
+            [static_image], "slack_token", "upload_channel"
+        )
+        mock_upload_discord.assert_called_once_with(
+            [static_image], "discord_webhook_url"
+        )
+
+    @patch("weather.publishing.upload_files_to_discord")
+    @patch("weather.publishing.upload_files_to_slack")
+    @patch("weather.application.generate_rss_feed")
+    @patch("weather.application.process_single_image")
+    @patch("weather.application.delete_storm_images")
+    @patch("weather.application.has_formation_chance")
+    @patch("weather.application.fetch_xml_feed")
+    @patch("sys.argv")
+    def test_main_no_storms_with_unchanged_static_image(
+        self,
+        mock_argv,
+        mock_fetch_xml,
+        mock_has_formation_chance,
+        mock_delete_storm_images,
+        mock_process_image,
+        mock_generate_rss,
+        mock_upload_slack,
+        mock_upload_discord,
+    ):
         """Test main function when no named storms exist, a formation chance is present, and the static image is unchanged."""
-        from weather import WeatherImage
-        
+        from weather.models import WeatherImage
+
         # Mock command line arguments
         mock_argv.__getitem__ = lambda s, i: [
-            'weather.py',
+            "weather.py",
             self.rss_file,
             self.image_dir,
-            'slack_webhook_url',
-            'slack_token',
-            'upload_channel',
-            'discord_webhook_url'
+            "slack_webhook_url",
+            "slack_token",
+            "upload_channel",
+            "discord_webhook_url",
         ][i]
         mock_argv.__len__ = lambda s: 7
-        
+
         # Mock no named storms, but a formation chance is present
         mock_fetch_xml.return_value = (0, Mock())  # no_storms=0 (count)
         mock_has_formation_chance.return_value = True
-        
+
         # Mock unchanged static image
-        static_image = WeatherImage('two_atl_7d0', 'path.png', 'path.gif', 'url', False, 'static')
+        static_image = WeatherImage(
+            "two_atl_7d0", "path.png", "path.gif", "url", False, "static"
+        )
         mock_process_image.return_value = static_image
-        
+
         main()
-        
+
         mock_fetch_xml.assert_called_once()
         mock_delete_storm_images.assert_called_once_with(self.image_dir)
         mock_process_image.assert_called_once()
         mock_generate_rss.assert_called_once_with(static_image, self.rss_file)
-        
+
         # Should not upload since image is unchanged
         mock_upload_slack.assert_not_called()
         mock_upload_discord.assert_not_called()
-    
-    @patch('weather.upload_files_to_discord')
-    @patch('weather.upload_files_to_slack')
-    @patch('weather.generate_rss_feed')
-    @patch('weather.fetch_all_weather_images')
-    @patch('weather.fetch_xml_feed')
-    @patch('sys.argv')
-    def test_main_with_storms_and_new_images(self, mock_argv, mock_fetch_xml, 
-                                           mock_fetch_images, mock_generate_rss,
-                                           mock_upload_slack, mock_upload_discord):
+
+    @patch("weather.publishing.upload_files_to_discord")
+    @patch("weather.publishing.upload_files_to_slack")
+    @patch("weather.application.generate_rss_feed")
+    @patch("weather.application.fetch_all_weather_images")
+    @patch("weather.application.fetch_xml_feed")
+    @patch("sys.argv")
+    def test_main_with_storms_and_new_images(
+        self,
+        mock_argv,
+        mock_fetch_xml,
+        mock_fetch_images,
+        mock_generate_rss,
+        mock_upload_slack,
+        mock_upload_discord,
+    ):
         """Test main function with storms and new images."""
-        from weather import WeatherImage
-        
+        from weather.models import WeatherImage
+
         # Mock command line arguments
         mock_argv.__getitem__ = lambda s, i: [
-            'weather.py',
+            "weather.py",
             self.rss_file,
             self.image_dir,
-            'slack_webhook_url',
-            'slack_token',
-            'upload_channel',
-            'discord_webhook_url'
+            "slack_webhook_url",
+            "slack_token",
+            "upload_channel",
+            "discord_webhook_url",
         ][i]
         mock_argv.__len__ = lambda s: 7
-        
+
         # Mock storms scenario
         mock_soup = Mock()
         mock_fetch_xml.return_value = (1, mock_soup)  # storms=1 (count)
-        
+
         # Mock images
-        static_image = WeatherImage('static', 'path.png', 'path.gif', 'url', True, 'static')
-        new_image = WeatherImage('new', 'new.png', 'new.gif', 'url', True, 'cone')
-        cached_image = WeatherImage('cached', 'cached.png', 'cached.gif', 'url', False, 'cached')
-        
+        static_image = WeatherImage(
+            "static", "path.png", "path.gif", "url", True, "static"
+        )
+        new_image = WeatherImage("new", "new.png", "new.gif", "url", True, "cone")
+        cached_image = WeatherImage(
+            "cached", "cached.png", "cached.gif", "url", False, "cached"
+        )
+
         mock_fetch_images.return_value = [static_image, new_image, cached_image]
-        
+
         main()
-        
+
         mock_fetch_xml.assert_called_once()
         mock_fetch_images.assert_called_once()
         mock_generate_rss.assert_called_once_with(static_image, self.rss_file)
         mock_upload_slack.assert_called_once()
         mock_upload_discord.assert_called_once()
-        
+
         # Verify only new images are uploaded
         uploaded_images = mock_upload_slack.call_args[0][0]
         self.assertEqual(len(uploaded_images), 2)  # static_image and new_image
         self.assertTrue(all(img.is_new for img in uploaded_images))
-    
-    @patch('weather.fetch_all_weather_images')
-    @patch('weather.fetch_xml_feed')
-    @patch('sys.argv')
-    def test_main_with_storms_no_new_images(self, mock_argv, mock_fetch_xml, mock_fetch_images):
+
+    @patch("weather.application.fetch_all_weather_images")
+    @patch("weather.application.fetch_xml_feed")
+    @patch("sys.argv")
+    def test_main_with_storms_no_new_images(
+        self, mock_argv, mock_fetch_xml, mock_fetch_images
+    ):
         """Test main function with storms but no new images."""
-        from weather import WeatherImage
-        
+        from weather.models import WeatherImage
+
         # Mock command line arguments
         mock_argv.__getitem__ = lambda s, i: [
-            'weather.py',
+            "weather.py",
             self.rss_file,
             self.image_dir,
-            'slack_webhook_url',
-            'slack_token',
-            'upload_channel',
-            'discord_webhook_url'
+            "slack_webhook_url",
+            "slack_token",
+            "upload_channel",
+            "discord_webhook_url",
         ][i]
         mock_argv.__len__ = lambda s: 7
-        
+
         # Mock storms scenario
         mock_soup = Mock()
         mock_fetch_xml.return_value = (1, mock_soup)  # storms=1 (count)
-        
+
         # Mock only cached/unchanged images
-        cached_image = WeatherImage('cached', 'cached.png', 'cached.gif', 'url', False, 'static')
+        cached_image = WeatherImage(
+            "cached", "cached.png", "cached.gif", "url", False, "static"
+        )
         mock_fetch_images.return_value = [cached_image]
-        
+
         # Capture stdout
         captured_output = StringIO()
-        
-        with patch('sys.stdout', captured_output):
+
+        with patch("sys.stdout", captured_output):
             main()
-        
+
         mock_fetch_xml.assert_called_once()
         mock_fetch_images.assert_called_once()
-    
-    @patch('weather.upload_files_to_discord')
-    @patch('weather.upload_files_to_slack')
-    @patch('weather.generate_rss_feed')
-    @patch('weather.process_single_image')
-    @patch('weather.delete_storm_images')
-    @patch('weather.has_formation_chance')
-    @patch('weather.setup_logging')
-    @patch('weather.fetch_xml_feed')
-    @patch('sys.argv')
-    def test_main_with_log_file_argument(self, mock_argv, mock_fetch_xml, mock_setup_logging,
-                                        mock_has_formation_chance,
-                                        mock_delete_storm_images, mock_process_image,
-                                        mock_generate_rss, mock_upload_slack, mock_upload_discord):
+
+    @patch("weather.publishing.upload_files_to_discord")
+    @patch("weather.publishing.upload_files_to_slack")
+    @patch("weather.application.generate_rss_feed")
+    @patch("weather.application.process_single_image")
+    @patch("weather.application.delete_storm_images")
+    @patch("weather.application.has_formation_chance")
+    @patch("weather.cli.setup_logging")
+    @patch("weather.application.fetch_xml_feed")
+    @patch("sys.argv")
+    def test_main_with_log_file_argument(
+        self,
+        mock_argv,
+        mock_fetch_xml,
+        mock_setup_logging,
+        mock_has_formation_chance,
+        mock_delete_storm_images,
+        mock_process_image,
+        mock_generate_rss,
+        mock_upload_slack,
+        mock_upload_discord,
+    ):
         """Test main function with log file argument."""
-        from weather import WeatherImage
-        
-        log_file = os.path.join(self.temp_dir, 'test.log')
-        
+        from weather.models import WeatherImage
+
+        log_file = os.path.join(self.temp_dir, "test.log")
+
         # Mock command line arguments with log file
         mock_argv.__getitem__ = lambda s, i: [
-            'weather.py',
+            "weather.py",
             self.rss_file,
             self.image_dir,
-            'slack_webhook_url',
-            'slack_token',
-            'upload_channel',
-            'discord_webhook_url',
-            '--log-file',
-            log_file
+            "slack_webhook_url",
+            "slack_token",
+            "upload_channel",
+            "discord_webhook_url",
+            "--log-file",
+            log_file,
         ][i]
         mock_argv.__len__ = lambda s: 9
-        
+
         mock_fetch_xml.return_value = (0, Mock())  # no_storms=0 (count)
         mock_has_formation_chance.return_value = True
-        
+
         # Mock unchanged static image to avoid upload calls
-        static_image = WeatherImage('two_atl_7d0', 'path.png', 'path.gif', 'url', False, 'static')
+        static_image = WeatherImage(
+            "two_atl_7d0", "path.png", "path.gif", "url", False, "static"
+        )
         mock_process_image.return_value = static_image
-        
+
         main()
-        
+
         mock_setup_logging.assert_called_once_with(log_file)
         mock_delete_storm_images.assert_called_once_with(self.image_dir)
         mock_process_image.assert_called_once()
         mock_generate_rss.assert_called_once_with(static_image, self.rss_file)
-        
+
         # Should not upload since image is unchanged
         mock_upload_slack.assert_not_called()
         mock_upload_discord.assert_not_called()
-    
-    @patch('weather.fetch_xml_feed')
-    @patch('sys.argv')
+
+    @patch("weather.application.fetch_xml_feed")
+    @patch("sys.argv")
     def test_main_with_custom_threshold(self, mock_argv, mock_fetch_xml):
         """Test main function with custom threshold argument."""
         # Mock command line arguments with custom threshold
         mock_argv.__getitem__ = lambda s, i: [
-            'weather.py',
+            "weather.py",
             self.rss_file,
             self.image_dir,
-            'slack_webhook_url',
-            'slack_token',
-            'upload_channel',
-            'discord_webhook_url',
-            '--threshold',
-            '0.005'
+            "slack_webhook_url",
+            "slack_token",
+            "upload_channel",
+            "discord_webhook_url",
+            "--threshold",
+            "0.005",
         ][i]
         mock_argv.__len__ = lambda s: 9
-        
+
         mock_fetch_xml.return_value = (0, Mock())  # no_storms=0 (count)
-        
-        with patch('weather.delete_images'), \
-             patch('weather.fetch_all_weather_images') as mock_fetch_images:
-            
+
+        with (
+            patch("weather.application.delete_images"),
+            patch("weather.application.fetch_all_weather_images") as mock_fetch_images,
+        ):
             mock_fetch_xml.return_value = (1, Mock())  # Change to have storms (count=1)
             mock_fetch_images.return_value = []
-            
+
             main()
-            
+
             # Verify custom threshold was passed to fetch_all_weather_images
             mock_fetch_images.assert_called_once()
-            args, kwargs = mock_fetch_images.call_args
-            if len(args) >= 3:
-                self.assertEqual(args[2], 0.005)
+            self.assertEqual(mock_fetch_images.call_args.args[2], 0.005)
 
-    @patch('weather.upload_files_to_discord')
-    @patch('weather.upload_files_to_slack')
-    @patch('weather.generate_rss_feed')
-    @patch('weather.process_single_image')
-    @patch('weather.delete_images')
-    @patch('weather.delete_storm_images')
-    @patch('weather.has_formation_chance')
-    @patch('weather.fetch_xml_feed')
-    @patch('sys.argv')
+    @patch("weather.publishing.upload_files_to_discord")
+    @patch("weather.publishing.upload_files_to_slack")
+    @patch("weather.application.generate_rss_feed")
+    @patch("weather.application.process_single_image")
+    @patch("weather.application.delete_images")
+    @patch("weather.application.delete_storm_images")
+    @patch("weather.application.has_formation_chance")
+    @patch("weather.application.fetch_xml_feed")
+    @patch("sys.argv")
     def test_main_no_storms_no_formation_chance_posts_final_update_then_deletes_all_images(
-        self, mock_argv, mock_fetch_xml, mock_has_formation_chance,
-        mock_delete_storm_images, mock_delete_images, mock_process_image,
-        mock_generate_rss, mock_upload_slack, mock_upload_discord
+        self,
+        mock_argv,
+        mock_fetch_xml,
+        mock_has_formation_chance,
+        mock_delete_storm_images,
+        mock_delete_images,
+        mock_process_image,
+        mock_generate_rss,
+        mock_upload_slack,
+        mock_upload_discord,
     ):
         """Test main function posts one final outlook update before deleting all images
         when there are no named storms and no formation chance."""
-        from weather import WeatherImage
+        from weather.models import WeatherImage
 
         # Mock command line arguments
         mock_argv.__getitem__ = lambda s, i: [
-            'weather.py',
+            "weather.py",
             self.rss_file,
             self.image_dir,
-            'slack_webhook_url',
-            'slack_token',
-            'upload_channel',
-            'discord_webhook_url'
+            "slack_webhook_url",
+            "slack_token",
+            "upload_channel",
+            "discord_webhook_url",
         ][i]
         mock_argv.__len__ = lambda s: 7
 
@@ -318,11 +369,13 @@ class TestWeatherIntegration(unittest.TestCase):
         mock_has_formation_chance.return_value = False
 
         # Simulate images left over from prior storm/formation-chance tracking
-        with open(os.path.join(self.image_dir, 'two_atl_7d0.png'), 'wb') as f:
-            f.write(b'old-static-image')
+        with open(os.path.join(self.image_dir, "two_atl_7d0.png"), "wb") as f:
+            f.write(b"old-static-image")
 
         # The final outlook image is now empty/quiet, but still changed from the last post
-        static_image = WeatherImage('two_atl_7d0', 'path.png', 'path.gif', 'url', True, 'static')
+        static_image = WeatherImage(
+            "two_atl_7d0", "path.png", "path.gif", "url", True, "static"
+        )
         mock_process_image.return_value = static_image
 
         main()
@@ -337,37 +390,48 @@ class TestWeatherIntegration(unittest.TestCase):
         # The final update must use a zero threshold so any change is treated as new
         self.assertEqual(mock_process_image.call_args.args[3], 0.0)
         mock_generate_rss.assert_called_once_with(static_image, self.rss_file)
-        mock_upload_slack.assert_called_once_with([static_image], 'slack_token', 'upload_channel')
-        mock_upload_discord.assert_called_once_with([static_image], 'discord_webhook_url')
+        mock_upload_slack.assert_called_once_with(
+            [static_image], "slack_token", "upload_channel"
+        )
+        mock_upload_discord.assert_called_once_with(
+            [static_image], "discord_webhook_url"
+        )
         mock_delete_images.assert_called_once_with(self.image_dir)
 
-    @patch('weather.upload_files_to_discord')
-    @patch('weather.upload_files_to_slack')
-    @patch('weather.generate_rss_feed')
-    @patch('weather.process_single_image')
-    @patch('weather.delete_images')
-    @patch('weather.delete_storm_images')
-    @patch('weather.has_formation_chance')
-    @patch('weather.fetch_xml_feed')
-    @patch('sys.argv')
+    @patch("weather.publishing.upload_files_to_discord")
+    @patch("weather.publishing.upload_files_to_slack")
+    @patch("weather.application.generate_rss_feed")
+    @patch("weather.application.process_single_image")
+    @patch("weather.application.delete_images")
+    @patch("weather.application.delete_storm_images")
+    @patch("weather.application.has_formation_chance")
+    @patch("weather.application.fetch_xml_feed")
+    @patch("sys.argv")
     def test_main_no_storms_no_formation_chance_unchanged_image_skips_upload(
-        self, mock_argv, mock_fetch_xml, mock_has_formation_chance,
-        mock_delete_storm_images, mock_delete_images, mock_process_image,
-        mock_generate_rss, mock_upload_slack, mock_upload_discord
+        self,
+        mock_argv,
+        mock_fetch_xml,
+        mock_has_formation_chance,
+        mock_delete_storm_images,
+        mock_delete_images,
+        mock_process_image,
+        mock_generate_rss,
+        mock_upload_slack,
+        mock_upload_discord,
     ):
         """Test main function does not re-upload if the final outlook image is unchanged,
         but still deletes all images."""
-        from weather import WeatherImage
+        from weather.models import WeatherImage
 
         # Mock command line arguments
         mock_argv.__getitem__ = lambda s, i: [
-            'weather.py',
+            "weather.py",
             self.rss_file,
             self.image_dir,
-            'slack_webhook_url',
-            'slack_token',
-            'upload_channel',
-            'discord_webhook_url'
+            "slack_webhook_url",
+            "slack_token",
+            "upload_channel",
+            "discord_webhook_url",
         ][i]
         mock_argv.__len__ = lambda s: 7
 
@@ -375,10 +439,12 @@ class TestWeatherIntegration(unittest.TestCase):
         mock_has_formation_chance.return_value = False
 
         # Simulate images left over from prior storm/formation-chance tracking
-        with open(os.path.join(self.image_dir, 'two_atl_7d0.png'), 'wb') as f:
-            f.write(b'old-static-image')
+        with open(os.path.join(self.image_dir, "two_atl_7d0.png"), "wb") as f:
+            f.write(b"old-static-image")
 
-        static_image = WeatherImage('two_atl_7d0', 'path.png', 'path.gif', 'url', False, 'static')
+        static_image = WeatherImage(
+            "two_atl_7d0", "path.png", "path.gif", "url", False, "static"
+        )
         mock_process_image.return_value = static_image
 
         main()
@@ -390,32 +456,39 @@ class TestWeatherIntegration(unittest.TestCase):
         mock_upload_discord.assert_not_called()
         mock_delete_images.assert_called_once_with(self.image_dir)
 
-    @patch('weather.upload_files_to_discord')
-    @patch('weather.upload_files_to_slack')
-    @patch('weather.generate_rss_feed')
-    @patch('weather.process_single_image')
-    @patch('weather.delete_images')
-    @patch('weather.delete_storm_images')
-    @patch('weather.has_formation_chance')
-    @patch('weather.fetch_xml_feed')
-    @patch('sys.argv')
+    @patch("weather.publishing.upload_files_to_discord")
+    @patch("weather.publishing.upload_files_to_slack")
+    @patch("weather.application.generate_rss_feed")
+    @patch("weather.application.process_single_image")
+    @patch("weather.application.delete_images")
+    @patch("weather.application.delete_storm_images")
+    @patch("weather.application.has_formation_chance")
+    @patch("weather.application.fetch_xml_feed")
+    @patch("sys.argv")
     def test_main_no_storms_no_formation_chance_already_clear_does_nothing(
-        self, mock_argv, mock_fetch_xml, mock_has_formation_chance,
-        mock_delete_storm_images, mock_delete_images, mock_process_image,
-        mock_generate_rss, mock_upload_slack, mock_upload_discord
+        self,
+        mock_argv,
+        mock_fetch_xml,
+        mock_has_formation_chance,
+        mock_delete_storm_images,
+        mock_delete_images,
+        mock_process_image,
+        mock_generate_rss,
+        mock_upload_slack,
+        mock_upload_discord,
     ):
         """Test main function does not re-post or touch the filesystem when there are
         no named storms, no formation chance, and the image directory is already empty
         (i.e. the final update was already posted on a previous run)."""
         # Mock command line arguments
         mock_argv.__getitem__ = lambda s, i: [
-            'weather.py',
+            "weather.py",
             self.rss_file,
             self.image_dir,
-            'slack_webhook_url',
-            'slack_token',
-            'upload_channel',
-            'discord_webhook_url'
+            "slack_webhook_url",
+            "slack_token",
+            "upload_channel",
+            "discord_webhook_url",
         ][i]
         mock_argv.__len__ = lambda s: 7
 
@@ -434,5 +507,5 @@ class TestWeatherIntegration(unittest.TestCase):
         mock_delete_images.assert_not_called()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
